@@ -1,26 +1,24 @@
 /**
- * Browser half of dsh-compass: one list-slot entry into `shell.overlay`
- * (the frame-wide floating layer — additive by id), plus the session-log
- * download action registered into the panel's own `panel.header.utilities`
- * list and its locale dictionary. Both registrations live in this one entry,
- * so the download action shares the panel package's fiber and disposal.
+ * Web context-and-files panel plugin, browser half: one list-slot entry into
+ * `shell.overlay` (the frame-wide floating layer — additive by id, and the
+ * shipped seat for a surface of your own). The entry declares the panel's
+ * viewing-state store and injects plain callbacks closed over the runtime
+ * services; components never see ctx.
+ *
+ * Export discipline: packages/client/AGENTS.md — nothing beyond the cordis
+ * loading contract leaves this module.
  */
-
-import type { ClientContext, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
-// Type-only: pulls ui-layout's SlotMap declaration (the shell.overlay seat).
+import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+// Type-only: pulls ui-layout's SlotMap declaration (the shell.overlay seat)
+// and its package-identity edge into this compilation.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-// Type-only: pulls the locale and command-hook Context merges.
-import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type {} from '@deepseek-ai/dsh-client-ui-commands/client'
+import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { DirectoryListing, DirectoryRead } from '../directory-types.ts'
+import type { GitFileDiff, GitWorkspaceStatus } from '../git-seam.ts'
 import { PanelRoot } from './PanelRoot.tsx'
 import { hasMoreDocs, loadOlderDocs, readInjectedDocs } from './read-context.ts'
 import { createPanelStore } from './store.ts'
 import type { ContextDoc, InjectedFace } from './types.ts'
-import { SessionLogDownloadController } from './export/controller.ts'
-import type { SessionLogDownloadDialogInjected } from './export/Dialog.tsx'
-import { SessionLogDownloadHeaderAction } from './export/HeaderAction.tsx'
-import { en, NS, zh, type SessionLogDownloadKey } from './export/locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
@@ -30,16 +28,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * session through the standard `useSessions` seat.
      */
     'panel.header.utilities': { kind: 'list'; scope: 'root' }
-  }
-
-  interface LocaleNamespaceMap {
-    'session-log-download': SessionLogDownloadKey
-  }
-}
-
-declare module '@deepseek-ai/cordis' {
-  interface Context {
-    sessionLogDownload: SessionLogDownloadController
   }
 }
 
@@ -67,25 +55,17 @@ async function routeFetch<T>(path: string, body: unknown, signal: AbortSignal): 
   return await response.json() as T
 }
 
-/** Required services: the slot registry, the session service, and the locale registry. */
-export const inject = ['slots', 'sessions', 'locale']
+/** Required services: the slot registry plus the session service the injected face reads. */
+export const inject = ['slots', 'sessions']
 
 /**
  * Client plugin body: register the panel entry into the layout-declared
- * `shell.overlay` list slot, then the download action into the panel's
- * header utilities. `slots.inject` waits for each declaration, so the
- * contributions install regardless of sibling load order and leave with this
+ * `shell.overlay` list slot. `slots.inject` waits for the declaration, so the
+ * contribution installs regardless of sibling load order and leaves with this
  * plugin's fiber.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  const controller = new SessionLogDownloadController()
-  ctx.provide('sessionLogDownload', controller)
-  ctx.effect(() => async () => { await controller.dispose() }, 'dsh-compass: download lifecycle')
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-compass: browser dictionaries')
-  ctx.on('command/executed', (sessionId, commandName, result) => {
-    if (commandName === 'export' && result.kind === 'success') void controller.download(sessionId)
-  })
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'context-files',
@@ -99,6 +79,8 @@ export function apply(ctx: ClientContext): void {
       openPath: (path): Promise<void> => routeFetch('/dir/open-path', { path }, new AbortController().signal).then(() => undefined),
       gitGraph: (cwd, count, skip, signal) => routeFetch('/git/graph', { cwd, count, skip }, signal),
       gitShowCommit: (cwd, hash, signal) => routeFetch('/git/show-commit', { cwd, hash }, signal),
+      workspaceStatus: (cwd, signal): Promise<GitWorkspaceStatus> => routeFetch<GitWorkspaceStatus>('/git/workspace', { cwd }, signal),
+      showFileDiff: (cwd, hash, path, signal): Promise<GitFileDiff> => routeFetch<GitFileDiff>('/git/show-diff', { cwd, hash, path }, signal),
       readInjectedDocs: (sessionId: SessionId): ContextDoc[] => readInjectedDocs(ctx, sessionId),
       hasMoreDocs: (sessionId: SessionId): boolean => hasMoreDocs(ctx, sessionId),
       loadOlderDocs: (sessionId: SessionId): Promise<void> => loadOlderDocs(ctx, sessionId),
@@ -106,14 +88,4 @@ export function apply(ctx: ClientContext): void {
         ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd,
     }),
   }, PanelRoot))
-  ctx.slots.inject('panel.header.utilities', () => ctx.slots.register({
-    name: 'panel.header.utilities',
-    id: 'session-log-download',
-    locale: NS,
-    inject: (): SessionLogDownloadDialogInjected => ({
-      hooks: { sessionLogDownload: controller.store },
-      request: (sessionId: SessionId) => controller.download(sessionId),
-      dismiss: (sessionId: SessionId) => { controller.dismiss(sessionId) },
-    }),
-  }, SessionLogDownloadHeaderAction))
 }

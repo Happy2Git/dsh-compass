@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { GitCommitDetail, GitCommitFile, GitGraphEntry } from '../git-seam.ts'
+import type { GitCommitDetail, GitCommitFile, GitGraphEntry, GitWorkspaceStatus } from '../git-seam.ts'
 import clsx from 'clsx'
 import css from './GitGraph.module.css'
 import type { InjectedFace } from './types.ts'
@@ -139,11 +139,21 @@ function messageOf(error: unknown): string {
 function statusLabel(status: GitCommitFile['status']): string {
   if (status === 'added') return '新增'
   if (status === 'deleted') return '删除'
+  if (status === 'untracked') return '未跟踪'
   return '修改'
 }
 
-/** The expanded commit detail: the commit's changed files (bounded list). */
-function CommitDetail({ detail, loading }: { detail: GitCommitDetail | null; loading: boolean }): ReactNode {
+/**
+ * The expanded commit detail: the commit's changed files (bounded list).
+ * Each row opens the file's diff in the centered pop-out.
+ */
+function CommitDetail({
+  detail, loading, onOpenDiff,
+}: {
+  detail: GitCommitDetail | null
+  loading: boolean
+  onOpenDiff: (hash: string, path: string) => void
+}): ReactNode {
   if (loading) return <div className={css.detailLoading}>加载中…</div>
   if (detail === null) return null
   return (
@@ -154,8 +164,53 @@ function CommitDetail({ detail, loading }: { detail: GitCommitDetail | null; loa
           <ul className={css.detailList}>
             {detail.files.map(file => (
               <li key={file.path} className={css.detailRow}>
+                <button type="button" className={css.detailFileButton} onClick={() => { onOpenDiff(detail.hash, file.path) }}>
+                  <span className={clsx(css.detailBadge, css[`detailStatus_${file.status}`])}>{statusLabel(file.status)}</span>
+                  <span className={css.detailPath}>{file.path}</span>
+                  <span className={css.detailCount}>
+                    {file.additions > 0 && <span className={css.detailAdd}>+{file.additions}</span>}
+                    {file.deletions > 0 && <span className={css.detailDel}>−{file.deletions}</span>}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      {detail.truncated && <div className={css.detailTruncated}>文件列表已截断。</div>}
+    </div>
+  )
+}
+
+/** The working-tree block: branch position and the uncommitted file list. */
+function WorkspaceBlock({ status, loading, error }: {
+  status: GitWorkspaceStatus | null
+  loading: boolean
+  error: string | null
+}): ReactNode {
+  if (loading) return <div className={css.workspaceBlock}><span className={css.workspaceNote}>读取工作区…</span></div>
+  if (error !== null) return <div className={css.workspaceBlock}><span className={css.workspaceError}>工作区读取失败:{error}</span></div>
+  if (status === null) return null
+  const position = status.branch === null
+    ? '游离 HEAD'
+    : status.upstream === null
+      ? `分支 ${status.branch}`
+      : status.ahead === 0 && status.behind === 0
+        ? `分支 ${status.branch} · 与 ${status.upstream} 同步`
+        : `分支 ${status.branch} · 领先 ${status.ahead} · 落后 ${status.behind}`
+  return (
+    <div className={css.workspaceBlock}>
+      <div className={css.workspaceHeader}>
+        <span className={css.workspaceTitle}>工作区</span>
+        <span className={css.workspacePosition}>{position}</span>
+      </div>
+      {status.files.length === 0
+        ? <div className={css.workspaceNote}>工作区干净。</div>
+        : (
+          <ul className={css.workspaceList}>
+            {status.files.map(file => (
+              <li key={file.path} className={css.workspaceRow}>
                 <span className={clsx(css.detailBadge, css[`detailStatus_${file.status}`])}>{statusLabel(file.status)}</span>
-                <span className={css.detailPath}>{file.path}</span>
+                <span className={css.workspacePath} title={file.path}>{file.path}</span>
                 <span className={css.detailCount}>
                   {file.additions > 0 && <span className={css.detailAdd}>+{file.additions}</span>}
                   {file.deletions > 0 && <span className={css.detailDel}>−{file.deletions}</span>}
@@ -164,7 +219,7 @@ function CommitDetail({ detail, loading }: { detail: GitCommitDetail | null; loa
             ))}
           </ul>
         )}
-      {detail.truncated && <div className={css.detailTruncated}>文件列表已截断。</div>}
+      {status.truncated && <div className={css.detailTruncated}>文件列表已截断。</div>}
     </div>
   )
 }
@@ -175,10 +230,13 @@ export interface GitGraphProps {
   cwd: string | undefined
   gitGraph: InjectedFace['gitGraph']
   gitShowCommit: InjectedFace['gitShowCommit']
+  workspaceStatus: InjectedFace['workspaceStatus']
+  /** Open one file's diff in the centered pop-out. */
+  onOpenDiff: (hash: string, path: string) => void
 }
 
 /** Render the commit-graph tab. */
-export function GitGraph({ cwd, gitGraph, gitShowCommit }: GitGraphProps): ReactNode {
+export function GitGraph({ cwd, gitGraph, gitShowCommit, workspaceStatus, onOpenDiff }: GitGraphProps): ReactNode {
   const [entries, setEntries] = useState<GitGraphEntry[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -186,6 +244,37 @@ export function GitGraph({ cwd, gitGraph, gitShowCommit }: GitGraphProps): React
   const [expandedHash, setExpandedHash] = useState<string | null>(null)
   const [detail, setDetail] = useState<GitCommitDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [workspace, setWorkspace] = useState<GitWorkspaceStatus | null>(null)
+  const [workspaceLoading, setWorkspaceLoading] = useState(false)
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null)
+
+  // The working-tree snapshot refreshes with the repository.
+  useEffect(() => {
+    let cancelled = false
+    setWorkspace(null)
+    setWorkspaceError(null)
+    if (cwd === undefined) return
+    setWorkspaceLoading(true)
+    const ctl = new AbortController()
+    void workspaceStatus(cwd, ctl.signal).then(
+      (status) => {
+        if (!cancelled) {
+          setWorkspace(status)
+          setWorkspaceLoading(false)
+        }
+      },
+      (reason: unknown) => {
+        if (!cancelled) {
+          setWorkspaceError(messageOf(reason))
+          setWorkspaceLoading(false)
+        }
+      },
+    )
+    return () => {
+      cancelled = true
+      ctl.abort()
+    }
+  }, [cwd, workspaceStatus])
 
   // First page, reset whenever the repository changes.
   useEffect(() => {
@@ -274,6 +363,7 @@ export function GitGraph({ cwd, gitGraph, gitShowCommit }: GitGraphProps): React
 
   return (
     <div className={css.gitLayout}>
+      <WorkspaceBlock status={workspace} loading={workspaceLoading} error={workspaceError} />
       {headRefs.length > 0 && (
         <div className={css.refsBar}>
           {headRefs.map((item, idx) => (
@@ -341,7 +431,7 @@ export function GitGraph({ cwd, gitGraph, gitShowCommit }: GitGraphProps): React
                 type="button"
                 className={clsx(css.row, isExpanded && css.rowExpanded)}
                 style={{ height: ROW_HEIGHT }}
-                onClick={() => toggleCommit(row.entry.hash)}
+                onClick={() => { toggleCommit(row.entry.hash) }}
                 aria-expanded={isExpanded}
               >
                 <svg width={rowWidth} height={ROW_HEIGHT} className={css.rowSvg} aria-hidden="true">
@@ -372,7 +462,7 @@ export function GitGraph({ cwd, gitGraph, gitShowCommit }: GitGraphProps): React
                   </span>
                 )}
               </button>
-              {isExpanded && <CommitDetail detail={detail} loading={detailLoading} />}
+              {isExpanded && <CommitDetail detail={detail} loading={detailLoading} onOpenDiff={onOpenDiff} />}
             </div>
           )
         })}

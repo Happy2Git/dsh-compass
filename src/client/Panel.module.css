@@ -694,3 +694,20 @@
   line-height: 18px;
   color: var(--dsw-alias-label-secondary);
 }
+
+/* Centered diff preview: monospace unified diff plus the truncation note. */
+.diffText {
+  margin: 0;
+  font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-primary);
+  white-space: pre;
+  overflow: auto;
+}
+
+.diffTruncated {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}

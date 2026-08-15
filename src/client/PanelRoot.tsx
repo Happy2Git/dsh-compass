@@ -77,6 +77,60 @@ function CenterPreview({ path, readText, onClose }: {
   )
 }
 
+/** Centered pop-out: one file's diff within one commit, over the conversation. */
+function CenterDiffPreview({ cwd, hash, path, showFileDiff, onClose }: {
+  cwd: string
+  hash: string
+  path: string
+  showFileDiff: InjectedFace['showFileDiff']
+  onClose: () => void
+}): ReactNode {
+  const [diff, setDiff] = useState<string | null>(null)
+  const [truncated, setTruncated] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setDiff(null)
+    setTruncated(false)
+    setError(null)
+    void showFileDiff(cwd, hash, path, new AbortController().signal).then(
+      (value) => {
+        if (cancelled) return
+        setDiff(value.diff)
+        setTruncated(value.truncated)
+      },
+      (reason: unknown) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason))
+      },
+    )
+    return () => { cancelled = true }
+  }, [cwd, hash, path, showFileDiff])
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={path}
+      closeLabel="关闭中部预览"
+      className={css.centerModal ?? ''}
+    >
+      <div className={css.centerBody}>
+        {error !== null
+          ? <p className={css.empty}>无法预览:{error}</p>
+          : diff === null
+            ? <p className={css.empty}>加载中…</p>
+            : (
+              <>
+                {truncated && <p className={css.diffTruncated}>diff 过长,仅显示部分。</p>}
+                <pre className={css.diffText}>{diff}</pre>
+              </>
+            )}
+      </div>
+    </Modal>
+  )
+}
+
 /** Centered pop-out: one injected context document's markdown over the conversation. */
 function CenterDocPreview({ doc, onClose }: { doc: ContextDoc; onClose: () => void }): ReactNode {
   const name = doc.label ?? doc.form ?? '上下文'
@@ -106,7 +160,7 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // onward would trip the unbound-method lint and hide the ownership.
   const {
     actions, renderSlot, listDirectory, openPath, readText, gitGraph, gitShowCommit,
-    readInjectedDocs, hasMoreDocs, loadOlderDocs,
+    workspaceStatus, showFileDiff, readInjectedDocs, hasMoreDocs, loadOlderDocs,
   } = props
   const sessions = props.useSessions(s => s)
   const state = props.useStore(s => s)
@@ -210,6 +264,15 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
         const doc = docs.find(candidate => candidate.seq === state.centerDocSeq) ?? null
         return doc !== null ? <CenterDocPreview doc={doc} onClose={actions.closeCenter} /> : null
       })()}
+      {state.centerDiff !== null && cwd !== undefined && (
+        <CenterDiffPreview
+          cwd={cwd}
+          hash={state.centerDiff.hash}
+          path={state.centerDiff.path}
+          showFileDiff={showFileDiff}
+          onClose={actions.closeCenter}
+        />
+      )}
       <section
         className={clsx(css.panel, collapsed && css.collapsed)}
         style={collapsed ? undefined : { width: state.width }}
@@ -317,6 +380,8 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
                   cwd={cwd}
                   gitGraph={gitGraph}
                   gitShowCommit={gitShowCommit}
+                  workspaceStatus={workspaceStatus}
+                  onOpenDiff={actions.openDiffCenter}
                 />
               )}
             </div>

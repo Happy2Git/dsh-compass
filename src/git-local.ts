@@ -23,7 +23,8 @@ import {
   Git, GitError,
 } from './git-seam.ts'
 import type {
-  GitCommitDetail, GitCommitFile, GitCommitFileStatus, GitGraphEntry, GitGraphPage, GitGraphOptions,
+  GitCommitDetail, GitCommitFile, GitCommitFileStatus, GitFileDiff, GitGraphEntry, GitGraphPage, GitGraphOptions,
+  GitWorkspaceFile, GitWorkspaceStatus,
 } from './git-seam.ts'
 
 /** Validated plugin configuration. */
@@ -66,8 +67,8 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   }
   const chunks: Buffer[] = []
   let total = 0
-  for await (const chunk of req) {
-    const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
+  for await (const chunk of req as AsyncIterable<Buffer | string>) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     total += buffer.length
     if (total > MAX_BODY_BYTES) throw new RouteError(413, 'request body too large')
     chunks.push(buffer)
@@ -149,10 +150,41 @@ function readShowCommitBody(body: unknown): { cwd: string; hash: string } {
   return { cwd: record.cwd, hash: record.hash }
 }
 
+/** Validate one workspace-request body into `cwd`. */
+function readWorkspaceBody(body: unknown): { cwd: string } {
+  if (typeof body !== 'object' || body === null) throw new RouteError(400, 'missing cwd')
+  const record = body as { cwd?: unknown }
+  if (typeof record.cwd !== 'string' || record.cwd === '' || !fullyQualified(record.cwd)) {
+    throw new RouteError(400, 'cwd must be an absolute path')
+  }
+  return { cwd: record.cwd }
+}
+
+/** Validate one show-diff-request body into `cwd` + `hash` + `path`. */
+function readShowDiffBody(body: unknown): { cwd: string; hash: string; path: string } {
+  if (typeof body !== 'object' || body === null) throw new RouteError(400, 'missing cwd, hash, or path')
+  const record = body as { cwd?: unknown; hash?: unknown; path?: unknown }
+  if (typeof record.cwd !== 'string' || record.cwd === '' || !fullyQualified(record.cwd)) {
+    throw new RouteError(400, 'cwd must be an absolute path')
+  }
+  if (typeof record.hash !== 'string' || record.hash === '') throw new RouteError(400, 'missing hash')
+  if (typeof record.path !== 'string' || record.path === '' || record.path.length > 1024) {
+    throw new RouteError(400, 'missing path')
+  }
+  return { cwd: record.cwd, hash: record.hash, path: record.path }
+}
+
 /** Map a `--name-status` one-letter status onto the closed file-status union. */
 function statusKind(letter: string): GitCommitFileStatus {
   if (letter === 'A') return 'added'
   if (letter === 'D') return 'deleted'
+  return 'modified'
+}
+
+/** Map a porcelain-v1 XY pair onto the closed workspace-file status. */
+function workspaceStatusKind(xy: string): GitWorkspaceFile['status'] {
+  if (xy.includes('A')) return 'added'
+  if (xy.includes('D')) return 'deleted'
   return 'modified'
 }
 
@@ -253,13 +285,43 @@ export default class LocalGit extends Git {
         }
       },
     }), 'git-local: /git/show-commit')
+    this.ctx.effect(() => this.ctx.webServer.register({
+      kind: 'exact',
+      path: '/git/workspace',
+      handler: async (req, res) => {
+        const signal = requestSignal(res)
+        try {
+          const body = readWorkspaceBody(await readJsonBody(req))
+          const status = await this.workspaceStatus(body.cwd, signal)
+          writeJson(res, 200, status)
+        } catch (error: unknown) {
+          writeJson(res, statusOf(error), { error: { message: messageOf(error) } })
+        }
+      },
+    }), 'git-local: /git/workspace')
+    this.ctx.effect(() => this.ctx.webServer.register({
+      kind: 'exact',
+      path: '/git/show-diff',
+      handler: async (req, res) => {
+        const signal = requestSignal(res)
+        try {
+          const body = readShowDiffBody(await readJsonBody(req))
+          const diff = await this.showFileDiff(body.cwd, body.hash, body.path, signal)
+          writeJson(res, 200, diff)
+        } catch (error: unknown) {
+          writeJson(res, statusOf(error), { error: { message: messageOf(error) } })
+        }
+      },
+    }), 'git-local: /git/show-diff')
   }
 
   /**
-   * Run one git invocation and return its collected stdout, classifying a
-   * spawn-level failure or non-zero exit into {@link GitError}.
+   * Run one git invocation and return its collected stdout plus the
+   * truncation flag, classifying a spawn-level failure or non-zero exit into
+   * {@link GitError}. Callers decide whether a lossy (truncated) stream is a
+   * failure or a bounded result.
    */
-  private async runGit(cwd: string, args: readonly string[], signal: AbortSignal | undefined): Promise<string> {
+  private async runGit(cwd: string, args: readonly string[], signal: AbortSignal | undefined): Promise<{ text: string; lossy: boolean }> {
     const handle = this.ctx.subprocess.spawn({
       argv: ['git', '-C', cwd, ...args],
       cwd,
@@ -286,11 +348,19 @@ export default class LocalGit extends Git {
       throw classifyFailure(stderr)
     }
     const stdout = handle.collected.stdout
-    if (stdout === undefined) return ''
+    if (stdout === undefined) return { text: '', lossy: false }
     const read = stdout.readFrom(0)
+    // A truncated stream parses into half-records with empty hashes/fields;
+    // the call sites decide: page/detail/status fail closed, diff truncates.
+    return { text: read.text, lossy: read.lossy }
+  }
+
+  /**
+   * Collected output that must parse whole: a truncated stream fails closed.
+   */
+  private async runGitStrict(cwd: string, args: readonly string[], signal: AbortSignal | undefined): Promise<string> {
+    const read = await this.runGit(cwd, args, signal)
     if (read.lossy) {
-      // A truncated stream parses into half-records with empty hashes/fields;
-      // failing closed keeps the page and detail trustworthy.
       throw new GitError('git-unavailable', `git output exceeded ${this.config.maxOutputBytes} bytes`)
     }
     return read.text
@@ -300,7 +370,7 @@ export default class LocalGit extends Git {
     const count = Math.min(options.count ?? this.config.maxCommits, this.config.maxCommits)
     const skip = options.skip ?? 0
     // Request count + 1 so an extra record proves `hasMore` without a second round trip.
-    const output = await this.runGit(cwd, [
+    const output = await this.runGitStrict(cwd, [
       'log', '--all', '--topo-order', '--date-order',
       `--skip=${skip}`, `--max-count=${count + 1}`,
       '--pretty=format:%H%x00%P%x00%D%x00%s%x00%aN%x00%aI%x1e',
@@ -326,12 +396,12 @@ export default class LocalGit extends Git {
   async showCommit(cwd: string, hash: string, signal?: AbortSignal): Promise<GitCommitDetail> {
     // One invocation for the metadata + name-status (the `%x1e` record end
     // separates the header from the status stream), one for the line counts.
-    const headerAndStatus = await this.runGit(cwd, [
+    const headerAndStatus = await this.runGitStrict(cwd, [
       'show', '-m', '--first-parent', '--no-renames',
       '--format=%H%x00%B%x00%aN%x00%aI%x1e',
       '--name-status', hash,
     ], signal)
-    const numstat = await this.runGit(cwd, [
+    const numstat = await this.runGitStrict(cwd, [
       'show', '-m', '--first-parent', '--no-renames', '--format=', '--numstat', hash,
     ], signal)
 
@@ -365,5 +435,79 @@ export default class LocalGit extends Git {
       files,
       truncated,
     }
+  }
+
+  async workspaceStatus(cwd: string, signal?: AbortSignal): Promise<GitWorkspaceStatus> {
+    const statusOutput = await this.runGitStrict(cwd, ['status', '--porcelain=v1', '--branch'], signal)
+    const numstatOutput = await this.runGitStrict(cwd, ['diff', 'HEAD', '--numstat', '--no-renames'], signal)
+
+    let branch: string | null = null
+    let upstream: string | null = null
+    let ahead = 0
+    let behind = 0
+    const statusByPath = new Map<string, GitWorkspaceFile['status']>()
+    for (const line of statusOutput.split('\n')) {
+      if (line.startsWith('## ')) {
+        const header = line.slice(3)
+        // `main...origin/main [ahead 2, behind 1]`, `main [no upstream]`,
+        // `No commits yet on main`, or `HEAD (no branch)`.
+        const upstreamMatch = /^([^\s]+)\.\.\.([^\s]+)(?:\s+\[ahead (\d+)(?:, behind (\d+))?\])?/.exec(header)
+        if (upstreamMatch !== null) {
+          const matchedBranch = upstreamMatch[1]
+          const matchedUpstream = upstreamMatch[2]
+          if (matchedBranch !== undefined && matchedUpstream !== undefined) {
+            branch = matchedBranch
+            upstream = matchedUpstream
+            ahead = Number(upstreamMatch[3] ?? 0)
+            behind = Number(upstreamMatch[4] ?? 0)
+          }
+        } else if (header.startsWith('No commits yet on ')) {
+          branch = header.slice('No commits yet on '.length)
+        }
+        continue
+      }
+      if (line.length < 3) continue
+      const xy = line.slice(0, 2)
+      if (xy === '!!') continue // ignored entries are not uncommitted changes
+      if (xy === '??') {
+        statusByPath.set(line.slice(3), 'untracked')
+        continue
+      }
+      let rest = line.slice(3)
+      // Renames/copies print `old -> new`; the row shows the new path.
+      const arrow = rest.indexOf(' -> ')
+      if (arrow !== -1) rest = rest.slice(arrow + 4)
+      if (rest === '') continue
+      statusByPath.set(rest, workspaceStatusKind(xy))
+    }
+
+    const countsByPath = parseNumstat(numstatOutput)
+    const files: GitWorkspaceFile[] = []
+    let truncated = false
+    // Code-unit name order: deterministic across locales (localeCompare's
+    // collation is environment-dependent and reorders mixed-case names).
+    for (const [path, status] of [...statusByPath].sort((left, right) => (left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0))) {
+      if (files.length === this.config.maxFiles) {
+        truncated = true
+        break
+      }
+      const counts = countsByPath.get(path)
+      files.push({
+        path,
+        status,
+        additions: status === 'untracked' ? 0 : counts?.additions ?? 0,
+        deletions: status === 'untracked' ? 0 : counts?.deletions ?? 0,
+      })
+    }
+    return { branch, upstream, ahead, behind, files, truncated }
+  }
+
+  async showFileDiff(cwd: string, hash: string, path: string, signal?: AbortSignal): Promise<GitFileDiff> {
+    const read = await this.runGit(cwd, [
+      'show', '--format=', '--no-ext-diff', '--unified=3', hash, '--', path,
+    ], signal)
+    // A diff is presentational: a cut stream renders with the truncated flag
+    // instead of failing the whole view.
+    return { path, diff: read.text, truncated: read.lossy }
   }
 }

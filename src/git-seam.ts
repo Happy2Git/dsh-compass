@@ -34,8 +34,8 @@ export interface GitGraphPage {
   hasMore: boolean
 }
 
-/** Change kind of one file within a commit. */
-export type GitCommitFileStatus = 'added' | 'modified' | 'deleted'
+/** Change kind of one file within a commit or in the working tree. */
+export type GitCommitFileStatus = 'added' | 'modified' | 'deleted' | 'untracked'
 
 /** One file a commit touched, with its line-count facts. */
 export interface GitCommitFile {
@@ -71,6 +71,44 @@ export interface GitGraphOptions {
   count?: number
   /** Commit offset for lazy "load more". */
   skip?: number
+}
+
+/** One uncommitted working-tree file. */
+export interface GitWorkspaceFile {
+  /** Repo-relative path. */
+  path: string
+  /** What the working tree changed about the file (`untracked` files carry no line counts). */
+  status: GitCommitFileStatus
+  /** Added line count (0 for untracked files). */
+  additions: number
+  /** Deleted line count (0 for untracked files). */
+  deletions: number
+}
+
+/** One read-only snapshot of the working tree: branch position and uncommitted changes. */
+export interface GitWorkspaceStatus {
+  /** Current branch name, or null on a detached HEAD. */
+  branch: string | null
+  /** Upstream branch (`origin/main` form), or null when no upstream is configured. */
+  upstream: string | null
+  /** Commits ahead of the upstream (0 without an upstream). */
+  ahead: number
+  /** Commits behind the upstream (0 without an upstream). */
+  behind: number
+  /** Uncommitted files, name-sorted; `truncated` flags a cut at the backend bound. */
+  files: GitWorkspaceFile[]
+  /** True when the backend cut `files` at its complete-result bound. */
+  truncated: boolean
+}
+
+/** One file's diff within one commit. */
+export interface GitFileDiff {
+  /** Repo-relative path. */
+  path: string
+  /** Unified diff text; `truncated` flags a cut at the byte bound. */
+  diff: string
+  /** True when the diff output exceeded the backend's byte bound. */
+  truncated: boolean
 }
 
 /** Closed failure vocabulary of the git primitives (mirrored onto the wire by consumers). */
@@ -126,6 +164,28 @@ export abstract class Git extends Service {
    * when `cwd` is not inside a git repository, `commit-unreadable` when the hash cannot be read.
    */
   abstract showCommit(cwd: string, hash: string, signal?: AbortSignal): Promise<GitCommitDetail>
+
+  /**
+   * One read-only snapshot of the working tree.
+   * @param cwd - absolute path of the repository to read.
+   * @param signal - caller lifetime; abort stops the git scan and rejects with the abort reason.
+   * @returns the branch position and the bounded uncommitted-file list.
+   * @throws {GitError} `git-unavailable` when the git binary cannot run, `not-a-repository`
+   * when `cwd` is not inside a git repository.
+   */
+  abstract workspaceStatus(cwd: string, signal?: AbortSignal): Promise<GitWorkspaceStatus>
+
+  /**
+   * One file's diff within one commit.
+   * @param cwd - absolute path of the repository to read.
+   * @param hash - full or unambiguous abbreviated commit hash.
+   * @param path - repo-relative path of the file within the commit.
+   * @param signal - caller lifetime; abort stops the git scan and rejects with the abort reason.
+   * @returns the bounded unified diff (cut diffs carry `truncated`).
+   * @throws {GitError} `git-unavailable` when the git binary cannot run, `not-a-repository`
+   * when `cwd` is not inside a git repository, `commit-unreadable` when the hash cannot be read.
+   */
+  abstract showFileDiff(cwd: string, hash: string, path: string, signal?: AbortSignal): Promise<GitFileDiff>
 }
 
 export default Git

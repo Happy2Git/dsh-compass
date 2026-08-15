@@ -22,6 +22,8 @@ type PanelState = {
   centerFile: string | null
   /** Seq of the context document opened in the centered pop-out; null hides it. */
   centerDocSeq: number | null
+  /** Commit hash + file path of the diff opened in the centered pop-out; null hides it. */
+  centerDiff: { hash: string; path: string } | null
   /** Whether the panel is collapsed to its rail (mirrors the left sidebar). */
   collapsed: boolean
   /** Expanded width in px, adjustable from the panel's left edge. */
@@ -38,6 +40,7 @@ type PanelActions = {
   toggleDir: (draft: PanelState, path: string) => void
   openCenter: (draft: PanelState, path: string) => void
   openDocCenter: (draft: PanelState, seq: number) => void
+  openDiffCenter: (draft: PanelState, hash: string, path: string) => void
   closeCenter: (draft: PanelState) => void
   toggleCollapsed: (draft: PanelState) => void
   setWidth: (draft: PanelState, width: number) => void
@@ -63,6 +66,7 @@ export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> 
       expandedDirs: [],
       centerFile: null,
       centerDocSeq: null,
+      centerDiff: null,
       collapsed: false,
       width: 280,
     }),
@@ -77,7 +81,8 @@ export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> 
       },
       openCenter: (d, path) => { d.centerFile = path },
       openDocCenter: (d, seq) => { d.centerDocSeq = seq },
-      closeCenter: (d) => { d.centerFile = null; d.centerDocSeq = null },
+      openDiffCenter: (d, hash, path) => { d.centerDiff = { hash, path } },
+      closeCenter: (d) => { d.centerFile = null; d.centerDocSeq = null; d.centerDiff = null },
       toggleCollapsed: (d) => { d.collapsed = !d.collapsed },
       setWidth: (d, width) => { d.width = width },
     },
