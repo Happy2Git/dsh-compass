@@ -4,13 +4,13 @@
  * preview dialog over the conversation area. Data arrives through the
  * framework hook (useSessions) and the injected callbacks; viewing state rides
  * the declared store. Fetched data is component-local state refreshed on
- * session change and explicit controls — event/effect reads, never a
- * subscription mirror.
+ * session change, stream advance, and explicit controls — event/effect
+ * reads, never a subscription mirror.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent, ReactNode } from 'react'
-import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import type { DirectoryRead } from '@deepseek-ai/dsh-host-directory-picker'
+import type { InjectFace, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import type { DirectoryRead } from '../directory-types.ts'
 import { IconPanelLeftOutline16, MarkdownText, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import clsx from 'clsx'
 import { ContextDocs } from './ContextDocs.tsx'
@@ -21,12 +21,12 @@ import css from './Panel.module.css'
 import type { createPanelStore } from './store.ts'
 import type { ContextDoc, InjectedFace } from './types.ts'
 
-/** The four-share component props: framework runtime, render slots, store, and the injected face. */
+/** The four-share component props: framework runtime, render slots, store, and the injected face (its hooks compartment bound). */
 export type PanelRootProps =
   & PropsRuntime<'shell.overlay'>
   & PropsRenderSlots<'panel.header.utilities'>
   & PropsStore<ReturnType<typeof createPanelStore>>
-  & InjectedFace
+  & InjectFace<InjectedFace>
 
 /** Resize bounds for the panel's left-edge drag (mirrors the sidebar's range). */
 const PANEL_MIN_WIDTH = 240
@@ -160,12 +160,15 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // onward would trip the unbound-method lint and hide the ownership.
   const {
     actions, renderSlot, listDirectory, gitStatusFor, openPath, readText, gitGraph, gitShowCommit,
-    workspaceStatus, showFileDiff, readInjectedDocs, hasMoreDocs, loadOlderDocs,
+    workspaceStatus, showFileDiff, readInjectedDocs, hasMoreDocs, loadOlderDocs, useDocsStream,
   } = props
   const sessions = props.useSessions(s => s)
   const state = props.useStore(s => s)
   const current = sessions.current
   const cwd = current === undefined ? undefined : props.sessionCwd(current)
+  // The current session's stream position (reference-stable between batches):
+  // a move re-projects the context documents below.
+  const docsStream = useDocsStream(s => s)
 
   const [docs, setDocs] = useState<ContextDoc[]>([])
   const [docsRev, setDocsRev] = useState(0)
@@ -228,13 +231,24 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
     setResizing(false)
   }, [actions])
 
+  // Projected injected documents: re-read when the session changes, the
+  // manual refresh bumps, or the session stream advances (docsStream). A
+  // signature guard keeps stream bumps from re-rendering when the projected
+  // rows did not change (the docs are durable log events; only their set and
+  // active flags move).
+  const docsSignature = useRef('')
   useEffect(() => {
     if (current === undefined) {
+      docsSignature.current = ''
       setDocs([])
       return
     }
-    setDocs(readInjectedDocs(current))
-  }, [current, docsRev, readInjectedDocs])
+    const next = readInjectedDocs(current)
+    const signature = `${current}:${next.map(doc => `${doc.seq}:${doc.active ? '1' : '0'}`).join(',')}`
+    if (signature === docsSignature.current) return
+    docsSignature.current = signature
+    setDocs(next)
+  }, [current, docsRev, docsStream, readInjectedDocs])
 
   const handleLoadOlder = (): void => {
     if (current === undefined || loadingOlder) return

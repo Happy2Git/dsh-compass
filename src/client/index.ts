@@ -16,6 +16,7 @@ import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { DirectoryListing, DirectoryRead } from '../directory-types.ts'
 import type { GitFileDiff, GitStatusFile, GitWorkspaceStatus } from '../git-seam.ts'
 import { PanelRoot } from './PanelRoot.tsx'
+import { docsStreamFor } from './docs-stream.ts'
 import { hasMoreDocs, loadOlderDocs, readInjectedDocs } from './read-context.ts'
 import { createPanelStore } from './store.ts'
 import type { ContextDoc, InjectedFace } from './types.ts'
@@ -66,6 +67,9 @@ export const inject = ['slots', 'sessions']
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
+  // One source per plugin (never per inject call): the renderer caches the
+  // bound hook per source object, so the identity must outlive renders.
+  const docsStream = docsStreamFor(ctx)
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'context-files',
@@ -87,6 +91,7 @@ export function apply(ctx: ClientContext): void {
       loadOlderDocs: (sessionId: SessionId): Promise<void> => loadOlderDocs(ctx, sessionId),
       sessionCwd: (sessionId: SessionId): string | undefined =>
         ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd,
+      hooks: { docsStream },
     }),
   }, PanelRoot))
 }
