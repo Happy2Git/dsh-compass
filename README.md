@@ -72,6 +72,16 @@ dsh plugin --profile web add ./dsh-compass
 
 `pnpm build` (also the `prepare` script) runs tsdown only — the shipped entry points transpile from `src/` with no type checking, so a git install builds self-contained. Type safety is owned where the sources originate: these sources are typechecked under the fork's strict aggregate before extraction, and the bundled `tsconfig.json` maps the `@deepseek-ai/dsh-*` types to a sibling `../deepseek-harness` checkout for editor support.
 
+## Roadmap
+
+The package is published and installable; here is where it goes next. Star or watch the repo to follow along.
+
+- **English UI locale.** The panel copy is Chinese today; add an English dictionary behind the locale service.
+- **Exact-path git output.** The git backend parses `--name-status`/`--numstat` with default quoting; switch to `-z` NUL-terminated output so paths with quotes or tabs display exactly.
+- **Rename-aware file list.** Show a rename as one row instead of a delete + add pair.
+- **Main-track install.** Once an upstream release ships the slot system in its web composition, the package installs onto the published dsh directly (today it needs a slot-system build or the fork).
+- **dsh-terminal.** The terminal TUI is packaged the same way and stays local until its feature set grows.
+
 ## License
 
 MIT. Copyright (c) 2026 DeepSeek.
