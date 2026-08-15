@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { GitCommitDetail, GitCommitFile, GitGraphEntry, GitWorkspaceStatus } from '../git-seam.ts'
+import { IconRefreshOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import clsx from 'clsx'
 import css from './GitGraph.module.css'
 import type { InjectedFace } from './types.ts'
@@ -247,6 +248,10 @@ export function GitGraph({ cwd, gitGraph, gitShowCommit, workspaceStatus, onOpen
   const [workspace, setWorkspace] = useState<GitWorkspaceStatus | null>(null)
   const [workspaceLoading, setWorkspaceLoading] = useState(false)
   const [workspaceError, setWorkspaceError] = useState<string | null>(null)
+  // Bumped by the header's refresh button; both initial reads re-run (the
+  // effects reset their own state), so the view catches up after the agent
+  // commits without leaving the tab.
+  const [refreshSeq, setRefreshSeq] = useState(0)
 
   // The working-tree snapshot refreshes with the repository.
   useEffect(() => {
@@ -274,7 +279,7 @@ export function GitGraph({ cwd, gitGraph, gitShowCommit, workspaceStatus, onOpen
       cancelled = true
       ctl.abort()
     }
-  }, [cwd, workspaceStatus])
+  }, [cwd, workspaceStatus, refreshSeq])
 
   // First page, reset whenever the repository changes.
   useEffect(() => {
@@ -301,7 +306,7 @@ export function GitGraph({ cwd, gitGraph, gitShowCommit, workspaceStatus, onOpen
       cancelled = true
       ctl.abort()
     }
-  }, [cwd, gitGraph])
+  }, [cwd, gitGraph, refreshSeq])
 
   const loadMore = useCallback((): void => {
     if (cwd === undefined || loadingMore) return
@@ -364,113 +369,127 @@ export function GitGraph({ cwd, gitGraph, gitShowCommit, workspaceStatus, onOpen
   return (
     <div className={css.gitLayout}>
       <WorkspaceBlock status={workspace} loading={workspaceLoading} error={workspaceError} />
-      {headRefs.length > 0 && (
-        <div className={css.refsBar}>
-          {headRefs.map((item, idx) => (
-            <span key={idx} className={clsx(css.ref, css[`ref_${item.type}`])}>{item.display}</span>
-          ))}
+      <div className={css.treeBlock}>
+        <div className={css.treeHeader}>
+          <span className={css.treeTitle}>Git 树</span>
+          <button
+            type="button"
+            className={css.refreshButton}
+            aria-label="刷新 Git 视图"
+            title="刷新 Git 视图"
+            onClick={() => { setRefreshSeq(seq => seq + 1) }}
+          >
+            <IconRefreshOutline14 />
+          </button>
         </div>
-      )}
-      <div className={css.graph}>
-        {rows.map((row) => {
-          const midY = ROW_HEIGHT / 2
-          const botY = ROW_HEIGHT
-          const xc = laneX(row.laneIndex)
-          const color = row.inputLanes[row.laneIndex]?.color ?? PALETTE[0]
-          const isHead = row.entry.refs.includes('HEAD ->')
-          const isMerge = row.entry.parents.length > 1
-          const isExpanded = row.entry.hash === expandedHash
-          const refItems = parseRefs(row.entry.refs)
-          const rowWidth = PADDING_LEFT + Math.max(row.inputLanes.length, row.outputLanes.length) * LANE_WIDTH
+        {headRefs.length > 0 && (
+          <div className={css.refsBar}>
+            {headRefs.map((item, idx) => (
+              <span key={idx} className={clsx(css.ref, css[`ref_${item.type}`])}>{item.display}</span>
+            ))}
+          </div>
+        )}
+        <div className={css.graph}>
+          {rows.map((row) => {
+            const midY = ROW_HEIGHT / 2
+            const botY = ROW_HEIGHT
+            const xc = laneX(row.laneIndex)
+            const color = row.inputLanes[row.laneIndex]?.color ?? PALETTE[0]
+            const isHead = row.entry.refs.includes('HEAD ->')
+            const isMerge = row.entry.parents.length > 1
+            const isExpanded = row.entry.hash === expandedHash
+            const refItems = parseRefs(row.entry.refs)
+            const rowWidth = PADDING_LEFT + Math.max(row.inputLanes.length, row.outputLanes.length) * LANE_WIDTH
 
-          const elements: ReactNode[] = []
-          for (let j = 0; j < row.inputLanes.length; j++) {
-            if (j === row.laneIndex) continue
-            const xj = laneX(j)
-            const node = row.inputLanes[j]
-            if (node === undefined) continue
-            const outIdx = row.outputLanes.findIndex(lane => lane.id === node.id)
-            if (outIdx === j) {
-              elements.push(<line key={`pass-${j}`} x1={xj} y1={0} x2={xj} y2={botY} className={css.lane} style={{ stroke: node.color }} />)
-            } else if (outIdx >= 0) {
-              elements.push(<path key={`shift-${j}`} d={curvePath(xj, 0, laneX(outIdx), botY)} className={css.lane} style={{ stroke: node.color }} />)
-            } else {
-              elements.push(<path key={`end-${j}`} d={curvePath(xj, 0, xc, midY)} className={css.lane} style={{ stroke: node.color }} />)
-            }
-          }
-          if (row.foundLane) {
-            elements.push(<line key="in" x1={xc} y1={0} x2={xc} y2={midY - CIRCLE_RADIUS} className={css.lane} style={{ stroke: color }} />)
-          }
-          if (row.mergeToLane !== undefined) {
-            elements.push(<path key="merge-out" d={curvePath(xc, midY + CIRCLE_RADIUS, laneX(row.mergeToLane), botY)} className={css.lane} style={{ stroke: color }} />)
-          } else if (row.entry.parents.length > 0) {
-            const parentLane = row.outputLanes.findIndex(lane => lane.id === row.entry.parents[0])
-            if (parentLane === row.laneIndex || parentLane === -1) {
-              elements.push(<line key="out-straight" x1={xc} y1={midY + CIRCLE_RADIUS} x2={xc} y2={botY} className={css.lane} style={{ stroke: color }} />)
-            } else {
-              elements.push(<path key="out-curve" d={curvePath(xc, midY + CIRCLE_RADIUS, laneX(parentLane), botY)} className={css.lane} style={{ stroke: color }} />)
-            }
-            for (let pi = 1; pi < row.entry.parents.length; pi++) {
-              const pl = row.outputLanes.findIndex(lane => lane.id === row.entry.parents[pi])
-              if (pl >= 0 && pl !== row.laneIndex) {
-                elements.push(<path key={`merge-${pi}`} d={curvePath(xc, midY + CIRCLE_RADIUS, laneX(pl), botY)} className={css.lane} style={{ stroke: color }} />)
+            const elements: ReactNode[] = []
+            for (let j = 0; j < row.inputLanes.length; j++) {
+              if (j === row.laneIndex) continue
+              const xj = laneX(j)
+              const node = row.inputLanes[j]
+              if (node === undefined) continue
+              const outIdx = row.outputLanes.findIndex(lane => lane.id === node.id)
+              if (outIdx === j) {
+                elements.push(<line key={`pass-${j}`} x1={xj} y1={0} x2={xj} y2={botY} className={css.lane} style={{ stroke: node.color }} />)
+              } else if (outIdx >= 0) {
+                elements.push(<path key={`shift-${j}`} d={curvePath(xj, 0, laneX(outIdx), botY)} className={css.lane} style={{ stroke: node.color }} />)
+              } else {
+                elements.push(<path key={`end-${j}`} d={curvePath(xj, 0, xc, midY)} className={css.lane} style={{ stroke: node.color }} />)
               }
             }
-          }
-          for (let j = row.inputLanes.length; j < row.outputLanes.length; j++) {
-            const lane = row.outputLanes[j]
-            if (lane === undefined) continue
-            elements.push(<path key={`new-${j}`} d={curvePath(xc, midY + CIRCLE_RADIUS, laneX(j), botY)} className={css.lane} style={{ stroke: lane.color }} />)
-          }
+            if (row.foundLane) {
+              elements.push(<line key="in" x1={xc} y1={0} x2={xc} y2={midY - CIRCLE_RADIUS} className={css.lane} style={{ stroke: color }} />)
+            }
+            if (row.mergeToLane !== undefined) {
+              elements.push(<path key="merge-out" d={curvePath(xc, midY + CIRCLE_RADIUS, laneX(row.mergeToLane), botY)} className={css.lane} style={{ stroke: color }} />)
+            } else if (row.entry.parents.length > 0) {
+              const parentLane = row.outputLanes.findIndex(lane => lane.id === row.entry.parents[0])
+              if (parentLane === row.laneIndex || parentLane === -1) {
+                elements.push(<line key="out-straight" x1={xc} y1={midY + CIRCLE_RADIUS} x2={xc} y2={botY} className={css.lane} style={{ stroke: color }} />)
+              } else {
+                elements.push(<path key="out-curve" d={curvePath(xc, midY + CIRCLE_RADIUS, laneX(parentLane), botY)} className={css.lane} style={{ stroke: color }} />)
+              }
+              for (let pi = 1; pi < row.entry.parents.length; pi++) {
+                const pl = row.outputLanes.findIndex(lane => lane.id === row.entry.parents[pi])
+                if (pl >= 0 && pl !== row.laneIndex) {
+                  elements.push(<path key={`merge-${pi}`} d={curvePath(xc, midY + CIRCLE_RADIUS, laneX(pl), botY)} className={css.lane} style={{ stroke: color }} />)
+                }
+              }
+            }
+            for (let j = row.inputLanes.length; j < row.outputLanes.length; j++) {
+              const lane = row.outputLanes[j]
+              if (lane === undefined) continue
+              elements.push(<path key={`new-${j}`} d={curvePath(xc, midY + CIRCLE_RADIUS, laneX(j), botY)} className={css.lane} style={{ stroke: lane.color }} />)
+            }
 
-          const circleFill = isExpanded ? 'var(--dsw-alias-brand-primary)' : color
+            const circleFill = isExpanded ? 'var(--dsw-alias-brand-primary)' : color
 
-          return (
-            <div key={row.entry.hash}>
-              <button
-                type="button"
-                className={clsx(css.row, isExpanded && css.rowExpanded)}
-                style={{ height: ROW_HEIGHT }}
-                onClick={() => { toggleCommit(row.entry.hash) }}
-                aria-expanded={isExpanded}
-              >
-                <svg width={rowWidth} height={ROW_HEIGHT} className={css.rowSvg} aria-hidden="true">
-                  {elements}
-                  {isHead && <circle key="head-outer" cx={xc} cy={midY} r={CIRCLE_RADIUS + 2.5} className={css.dotRing} style={{ stroke: circleFill }} />}
-                  {isMerge && <circle key="merge-outer" cx={xc} cy={midY} r={CIRCLE_RADIUS + 1.5} className={css.dotRing} style={{ stroke: circleFill }} />}
-                  <circle
-                    key="dot"
-                    cx={xc}
-                    cy={midY}
-                    r={isHead || isMerge ? CIRCLE_RADIUS - 1.5 : CIRCLE_RADIUS}
-                    style={{ fill: circleFill }}
-                  />
-                </svg>
-                <span className={css.rowText}>
-                  <span className={css.rowMessage}>{row.entry.message}</span>
-                  <span className={css.rowMeta}>
-                    <span className={css.rowHash}>{row.entry.hash.slice(0, 7)}</span>
-                    <span className={css.rowAuthor}>{row.entry.author}</span>
-                    <span className={css.rowDate}>{new Date(row.entry.date).toLocaleDateString()}</span>
+            return (
+              <div key={row.entry.hash}>
+                <button
+                  type="button"
+                  className={clsx(css.row, isExpanded && css.rowExpanded)}
+                  style={{ height: ROW_HEIGHT }}
+                  onClick={() => { toggleCommit(row.entry.hash) }}
+                  aria-expanded={isExpanded}
+                >
+                  <svg width={rowWidth} height={ROW_HEIGHT} className={css.rowSvg} aria-hidden="true">
+                    {elements}
+                    {isHead && <circle key="head-outer" cx={xc} cy={midY} r={CIRCLE_RADIUS + 2.5} className={css.dotRing} style={{ stroke: circleFill }} />}
+                    {isMerge && <circle key="merge-outer" cx={xc} cy={midY} r={CIRCLE_RADIUS + 1.5} className={css.dotRing} style={{ stroke: circleFill }} />}
+                    <circle
+                      key="dot"
+                      cx={xc}
+                      cy={midY}
+                      r={isHead || isMerge ? CIRCLE_RADIUS - 1.5 : CIRCLE_RADIUS}
+                      style={{ fill: circleFill }}
+                    />
+                  </svg>
+                  <span className={css.rowText}>
+                    <span className={css.rowMessage}>{row.entry.message}</span>
+                    <span className={css.rowMeta}>
+                      <span className={css.rowHash}>{row.entry.hash.slice(0, 7)}</span>
+                      <span className={css.rowAuthor}>{row.entry.author}</span>
+                      <span className={css.rowDate}>{new Date(row.entry.date).toLocaleDateString()}</span>
+                    </span>
                   </span>
-                </span>
-                {!isHead && refItems.length > 0 && (
-                  <span className={css.refs}>
-                    {refItems.map((item, idx) => (
-                      <span key={idx} className={clsx(css.ref, css[`ref_${item.type}`])}>{item.display}</span>
-                    ))}
-                  </span>
-                )}
-              </button>
-              {isExpanded && <CommitDetail detail={detail} loading={detailLoading} onOpenDiff={onOpenDiff} />}
-            </div>
-          )
-        })}
-        {hasMore && (
-          <button type="button" className={css.loadMore} onClick={loadMore} disabled={loadingMore}>
-            {loadingMore ? '加载中…' : '加载更多提交'}
-          </button>
-        )}
+                  {!isHead && refItems.length > 0 && (
+                    <span className={css.refs}>
+                      {refItems.map((item, idx) => (
+                        <span key={idx} className={clsx(css.ref, css[`ref_${item.type}`])}>{item.display}</span>
+                      ))}
+                    </span>
+                  )}
+                </button>
+                {isExpanded && <CommitDetail detail={detail} loading={detailLoading} onOpenDiff={onOpenDiff} />}
+              </div>
+            )
+          })}
+          {hasMore && (
+            <button type="button" className={css.loadMore} onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? '加载中…' : '加载更多提交'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

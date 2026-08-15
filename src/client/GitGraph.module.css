@@ -2,21 +2,68 @@
  * Lane colors are inline styles (SVG stroke/fill take a --dsw token per lane);
  * this sheet owns geometry, typography, and the scrolling region. */
 
-/* Column wrapper: the refs bar above, the scrollable lane graph below. */
+/* Column wrapper: the working-tree block above, the framed commit tree below. */
 .gitLayout {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
-/* Current-branch refs (HEAD's decorations), pinned below the tab bar. */
+/* Commit-tree frame: the same border/radius shell as the working-tree block,
+ * with the lane graph scrolling inside it. */
+.treeBlock {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+}
+
+.treeHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: none;
+}
+
+.treeTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Compact icon-only refresh, mirroring the toolbar glyphs in the app. */
+.refreshButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.refreshButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Current-branch refs (HEAD's decorations), pinned above the lane graph. */
 .refsBar {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   flex: none;
-  padding: 4px 12px 8px;
+  padding: 0 0 8px;
 }
 
 .graph {
