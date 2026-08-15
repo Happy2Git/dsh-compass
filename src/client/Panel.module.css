@@ -619,14 +619,78 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* Main-track conversation reserve: the fork's ui-conversation reads
- * --dsh-context-panel-width; stock dsh composes no such rule, and its shell
- * overlays float above the frame. Pad every direct column of the AppFrame
- * root (the element whose direct child is the [data-shell-overlay] layer)
- * except the overlay itself and the left sidebar, driven by the panel's own
- * --dsh-compass-width variable (0px when collapsed). On the fork both rules
- * stay independent: this one reads the compass variable, the fork rule reads
- * the context-panel variable, so no composition double-pads. */
-:global(div:has(> [data-shell-overlay]) > div:not([data-shell-overlay]):not(:first-child)) {
-  margin-right: var(--dsh-compass-width, 0px);
+/* Context tab: search box, then the live-window block over the scrollable
+ * history stream. */
+.contextControls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: none;
+}
+
+.contextSearch {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.contextSearch:focus {
+  outline: none;
+  border-color: var(--dsw-alias-interactive-accent);
+}
+
+.docSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: none;
+  min-height: 0;
+}
+
+.docSectionFill {
+  flex: 1;
+}
+
+.docSection:not(.docSectionFill) .docList {
+  flex: none;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.docSectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex: none;
+}
+
+.docSectionTitle {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.docSectionCount {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.docSectionDivider {
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+
+.docEmpty {
+  margin: 2px 0 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
 }

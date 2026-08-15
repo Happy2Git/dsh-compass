@@ -3,8 +3,8 @@
  * injected-context document shown in the context tab.
  */
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
-import type { DirectoryListing, DirectoryRead } from '../directory-types.ts'
-import type { GitCommitDetail, GitGraphPage } from '../git-seam.ts'
+import type { DirectoryListing, DirectoryRead } from '@deepseek-ai/dsh-host-directory-picker'
+import type { GitCommitDetail, GitGraphPage } from '@deepseek-ai/dsh-host-git'
 
 /** One injected-context document projected from a logged non-user message. */
 export interface ContextDoc {
@@ -20,6 +20,8 @@ export interface ContextDoc {
   form: string | null
   /** The complete rendered markdown text. */
   text: string
+  /** True while the document is still in the model's live window (not shadowed by a compaction checkpoint). */
+  active: boolean
 }
 
 /**

@@ -26,12 +26,15 @@ type PanelState = {
   collapsed: boolean
   /** Expanded width in px, adjustable from the panel's left edge. */
   width: number
+  /** Search query over injected-context documents (label + text + form). */
+  contextFilter: string
 }
 
 /** Annotation twin of the actions literal below. */
 type PanelActions = {
   setTab: (draft: PanelState, tab: PanelTab) => void
   setFilter: (draft: PanelState, filter: string) => void
+  setContextFilter: (draft: PanelState, filter: string) => void
   toggleDir: (draft: PanelState, path: string) => void
   openCenter: (draft: PanelState, path: string) => void
   openDocCenter: (draft: PanelState, seq: number) => void
@@ -56,6 +59,7 @@ export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> 
     init: (): PanelState => ({
       tab: 'context',
       filter: '',
+      contextFilter: '',
       expandedDirs: [],
       centerFile: null,
       centerDocSeq: null,
@@ -65,6 +69,7 @@ export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> 
     actions: {
       setTab: (d, tab) => { d.tab = tab },
       setFilter: (d, filter) => { d.filter = filter },
+      setContextFilter: (d, filter) => { d.contextFilter = filter },
       toggleDir: (d, path) => {
         const index = d.expandedDirs.indexOf(path)
         if (index >= 0) d.expandedDirs.splice(index, 1)

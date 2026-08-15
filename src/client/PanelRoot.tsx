@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent, ReactNode } from 'react'
 import type { PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import type { DirectoryRead } from '../directory-types.ts'
+import type { DirectoryRead } from '@deepseek-ai/dsh-host-directory-picker'
 import { IconPanelLeftOutline16, MarkdownText, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import clsx from 'clsx'
 import { ContextDocs } from './ContextDocs.tsx'
@@ -139,9 +139,9 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // conversation column (a sibling subtree) can inset itself and stay clear of
   // this overlay instead of sliding beneath it.
   useEffect(() => {
-    document.documentElement.style.setProperty('--dsh-compass-width', collapsed ? '0px' : `${state.width}px`)
+    document.documentElement.style.setProperty('--dsh-context-panel-width', collapsed ? '0px' : `${state.width}px`)
     return () => {
-      document.documentElement.style.removeProperty('--dsh-compass-width')
+      document.documentElement.style.removeProperty('--dsh-context-panel-width')
     }
   }, [collapsed, state.width])
 
@@ -289,6 +289,8 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
               {state.tab === 'context' && (
                 <ContextDocs
                   docs={docs}
+                  filter={state.contextFilter}
+                  onFilter={actions.setContextFilter}
                   onOpenDoc={actions.openDocCenter}
                   onRefresh={() => { setDocsRev(rev => rev + 1) }}
                   hasSession={current !== undefined}

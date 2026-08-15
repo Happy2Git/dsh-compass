@@ -21,7 +21,10 @@ function contentText(content: readonly ContentBlock[]): string {
 
 /**
  * Project the injected-context documents of one session, oldest first.
- * Unknown sessions and empty context messages produce no rows.
+ * Unknown sessions and empty context messages produce no rows. Each document
+ * carries an `active` flag: a compaction checkpoint (`kind: 'compaction'`)
+ * shadows every document at or before its sequence, so only documents after
+ * the latest checkpoint are still in the model's live window.
  * @param ctx - client root context (sessions binding lookup).
  * @param sessionId - target session.
  * @returns the session's injected-context documents.
@@ -30,6 +33,12 @@ export function readInjectedDocs(ctx: ClientContext, sessionId: SessionId): Cont
   const binding = ctx.sessions.binding(sessionId)
   if (binding === undefined) return []
   const snapshot = binding.session.getSnapshot()
+  // The latest compaction checkpoint's seq is the live-window boundary; -1
+  // (never compacted) keeps every document active.
+  let lastCompactionSeq = -1
+  for (const node of snapshot.chat.legacy.nodes) {
+    if (node.kind === 'compaction' && node.seq > lastCompactionSeq) lastCompactionSeq = node.seq
+  }
   const docs: ContextDoc[] = []
   for (const node of snapshot.chat.legacy.nodes) {
     if (node.kind !== 'context') continue
@@ -42,6 +51,7 @@ export function readInjectedDocs(ctx: ClientContext, sessionId: SessionId): Cont
       label: node.provenance.label,
       form: node.form,
       text,
+      active: node.seq > lastCompactionSeq,
     })
   }
   return docs
