@@ -5,7 +5,7 @@
  * component-local (fetched per render lifecycle), and session facts stay in
  * the object layer.
  */
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
+import { defineStore, type EngineStoreHandle, type EngineStoreInstance } from '@deepseek-ai/dsh-client-runtime/client'
 
 /** The panel's two views. */
 export type PanelTab = 'files' | 'context' | 'git'
@@ -43,11 +43,16 @@ type PanelActions = {
 /**
  * Create the panel store handle. The context tab is the initial view: it is
  * the feature's core deliverable (injected markdown), while the directory
- * tree is the secondary navigation surface.
+ * tree is the secondary navigation surface. The whole state persists to
+ * localStorage (the engine's opt-in channel), so width, active tab, and
+ * collapse survive a reload per browser origin — each profile's origin is
+ * its own storage identity. The centered pop-out is transient: the wrapper
+ * clears any rehydrated center selection before a render can show it.
  * @returns the store handle (spec + type + identity + factory in one).
  */
 export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> {
-  return defineStore({
+  const inner = defineStore<PanelState, PanelActions>({
+    persist: 'dsh-compass.panel',
     init: (): PanelState => ({
       tab: 'context',
       filter: '',
@@ -72,4 +77,18 @@ export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> 
       setWidth: (d, width) => { d.width = width },
     },
   })
+  return {
+    spec: inner.spec,
+    create(): EngineStoreInstance<PanelState, PanelActions> {
+      const instance = inner.create()
+      // Rehydrated state may carry a centered pop-out from the previous page
+      // life; a reload must not reopen a preview dialog. Clear it before any
+      // render sees the store.
+      const snapshot = instance.getSnapshot()
+      if (snapshot.centerFile !== null || snapshot.centerDocSeq !== null) {
+        instance.actions.closeCenter()
+      }
+      return instance
+    },
+  }
 }
