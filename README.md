@@ -6,6 +6,24 @@ A single-package [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 The package is one bundle, one loader row: the host half mounts the local git backend (`/git/*`), the plugin-owned directory routes (`/dir/*`), and the `/export` command as child plugins; the browser half registers the panel into `shell.overlay` and the download action into the panel's header utilities.
 
+## Screenshots
+
+**Files tab** — lazy directory tree with directories-first order, basename filter, per-row open/copy actions:
+
+![Files tab](screenshots/01-files-tab.png)
+
+**Git tab** — read-only commit graph with lanes, ref badges, and lazy commit expansion:
+
+![Git tab](screenshots/02-git-tab.png)
+
+**Context tab** — the session's injected-context documents with "load older" paging:
+
+![Context tab](screenshots/03-context-tab.png)
+
+**Directories first** — symlinked directories sort with the directories group:
+
+![Files tab, directories first](screenshots/04-files-tab-dirs-first.png)
+
 ## Main-track compatibility
 
 The package carries every capability surface it needs, so it installs on any dsh build whose web composition includes the slot system (in upstream `master` since the slot-system commit; the last npm release predates it):

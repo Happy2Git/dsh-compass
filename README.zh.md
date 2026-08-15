@@ -6,6 +6,24 @@
 
 一个包 = 一个 bundle = 一行 loader 条目：host 半把本地 Git 后端（`/git/*`）、插件自有目录路由（`/dir/*`）和 `/export` 命令作为子插件挂载；浏览器半把面板注册进 `shell.overlay`，把下载动作注册进面板头部工具区。
 
+## 截图
+
+**文件夹标签** — 惰性目录树，目录优先排序，按名过滤，每行带打开/复制操作：
+
+![文件夹标签](screenshots/01-files-tab.png)
+
+**Git 标签** — 只读提交图，泳道、引用徽章、懒加载提交展开：
+
+![Git 标签](screenshots/02-git-tab.png)
+
+**上下文标签** — 会话的注入上下文文档，带「加载更早」分页：
+
+![上下文标签](screenshots/03-context-tab.png)
+
+**目录优先** — 指向目录的符号链接与目录同组排序：
+
+![文件夹标签，目录优先](screenshots/04-files-tab-dirs-first.png)
+
 ## main-track 兼容性
 
 本包自带它需要的全部能力面，因此可以装到任何 web 组合包含槽位系统的 dsh 构建上（槽位系统已在上游 `master`；最后一次 npm 发布早于它）：
