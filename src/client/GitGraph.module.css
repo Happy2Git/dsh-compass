@@ -1,0 +1,265 @@
+/* Read-only commit-graph view: a lane graph over the topo-ordered commit DAG.
+ * Lane colors are inline styles (SVG stroke/fill take a --dsw token per lane);
+ * this sheet owns geometry, typography, and the scrolling region. */
+
+/* Column wrapper: the refs bar above, the scrollable lane graph below. */
+.gitLayout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Current-branch refs (HEAD's decorations), pinned below the tab bar. */
+.refsBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: none;
+  padding: 4px 12px 8px;
+}
+
+.graph {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.empty,
+.error {
+  margin: 12px 4px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l3);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.rowExpanded {
+  background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover));
+}
+
+.rowSvg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.lane {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  /* The connector lines fade to a tint so the commit dots stay the focus. */
+  opacity: 0.5;
+}
+
+.dotRing {
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0 8px 0 4px;
+}
+
+.rowMessage {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.rowMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.rowHash {
+  flex-shrink: 0;
+  color: var(--dsw-alias-brand-primary);
+}
+
+.rowAuthor {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowDate {
+  flex-shrink: 0;
+}
+
+.refs {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  padding-right: 6px;
+}
+
+.ref {
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ref_branch {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-state-success-tertiary);
+}
+
+.ref_remote {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-state-business-tertiary);
+}
+
+.ref_tag {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-state-warn-tertiary);
+}
+
+.loadMore {
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.loadMore:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-brand-primary);
+}
+
+.loadMore:disabled {
+  color: var(--dsw-alias-label-caption);
+  cursor: default;
+}
+
+.detail {
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  padding: 4px 0 8px;
+}
+
+.detailLoading,
+.detailEmpty {
+  padding: 6px 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.detailList {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 28px;
+}
+
+.detailRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  padding: 2px 8px 2px 0;
+}
+
+.detailBadge {
+  flex-shrink: 0;
+  width: 30px;
+  text-align: center;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.detailStatus_added {
+  color: var(--dsw-alias-state-success-primary);
+  background: var(--dsw-alias-state-success-secondary);
+}
+
+.detailStatus_modified {
+  color: var(--dsw-alias-state-warn-label);
+  background: var(--dsw-alias-state-warn-secondary);
+}
+
+.detailStatus_deleted {
+  color: var(--dsw-alias-state-error-primary);
+  background: var(--dsw-alias-state-error-secondary);
+}
+
+.detailPath {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.detailCount {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.detailAdd {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.detailDel {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.detailTruncated {
+  padding: 4px 8px 0 28px;
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  line-height: 16px;
+}

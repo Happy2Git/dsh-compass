@@ -1,0 +1,65 @@
+{
+  "name": "dsh-compass",
+  "version": "0.1.0",
+  "description": "DSH web plugin: right-side context-and-files panel (directory browser, injected-context documents, read-only git commit graph) plus the session-log download action",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./invariant": "./lib/invariant.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/invariant.js",
+    "lib/client.js",
+    "lib/client.js.map",
+    "src",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "scripts": {
+    "prepare": "tsdown",
+    "build": "tsdown"
+  },
+  "engines": {
+    "node": "^22.19 || >=24"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-invariants": ">=0.0.1",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-invariants": "^0.0.1-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "@types/node": "^22.20.1",
+    "@types/react": "^18.2.0",
+    "clsx": "^2.1.1",
+    "lightningcss": "^1.29.0",
+    "react": "^18.2.0",
+    "tsdown": "^0.22.0",
+    "typescript": "^6.0.0"
+  }
+}

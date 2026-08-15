@@ -1,0 +1,12 @@
+# dsh-compass bundle patch: one loader row mounts the merged panel —
+# the local git backend (/git/*), the plugin-owned directory routes (/dir/*),
+# and the /export command run as child plugins of this row, while the browser
+# half rides the same package through its dsh.client declaration.
+#
+# The fork ships this panel in-box (the ui-context-files / git / directory-routes
+# / session-log-download rows in the dsh-web-app bundle). Compositions that
+# install this package must disable those four rows by id in their own
+# cordis.patch.yml — see README.
+- insert:
+    - id: context-files-panel
+      name: 'dsh-compass'

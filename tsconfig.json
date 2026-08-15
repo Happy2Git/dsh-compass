@@ -1,0 +1,69 @@
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2024",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "noEmit": true,
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@deepseek-ai/dsh-subprocess": [
+        "../deepseek-harness/packages/subprocess/subprocess/lib/types"
+      ],
+      "@deepseek-ai/dsh-host-webserver": [
+        "../deepseek-harness/packages/host/webserver/lib/types"
+      ],
+      "@deepseek-ai/dsh-commands": [
+        "../deepseek-harness/packages/interaction/commands/lib/types"
+      ],
+      "@deepseek-ai/dsh-client-runtime/client": [
+        "../deepseek-harness/packages/client/runtime/lib/types/client"
+      ],
+      "@deepseek-ai/dsh-client-ui-layout/client": [
+        "../deepseek-harness/packages/client/ui-layout/lib/types/client"
+      ],
+      "@deepseek-ai/dsh-client-ui-slots": [
+        "../deepseek-harness/packages/client/ui-slots/lib/types"
+      ],
+      "@deepseek-ai/dsh-client-ui-primitives": [
+        "../deepseek-harness/packages/client/ui-primitives/lib/types"
+      ],
+      "@deepseek-ai/dsh-client-locale/client": [
+        "../deepseek-harness/packages/client/locale/lib/types/client"
+      ],
+      "@deepseek-ai/dsh-client-ui-commands/client": [
+        "../deepseek-harness/packages/client/ui-commands/lib/types/client"
+      ],
+      "@deepseek-ai/dsh-api-remotes/client": [
+        "../deepseek-harness/packages/api/remotes/lib/types/client/index.d.ts"
+      ],
+      "@deepseek-ai/dsh-host-directory-picker": [
+        "../deepseek-harness/packages/host/directory-picker/lib/types"
+      ],
+      "@deepseek-ai/dsh-llm/types": [
+        "../deepseek-harness/packages/llm/llm/lib/types/types.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ]
+}

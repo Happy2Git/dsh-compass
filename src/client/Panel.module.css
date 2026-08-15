@@ -1,0 +1,632 @@
+/* Context-and-files panel: a right column docked symmetrically with the left
+ * sidebar — same fill, same border side (mirrored), full height, flush to the
+ * frame edge, always visible (no collapse rail). Row/type rhythm follows the
+ * directory-browser family; the centered pop-out is a large dialog over the
+ * conversation. */
+
+/* Open state: the symmetric right column (sidebar default width, sidebar fill,
+ * left border, no radius — the mirror of SidebarRoot's geometry). */
+.panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 12px;
+  box-sizing: border-box;
+  border-left: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-specific-sidebar-fill);
+  color: var(--dsw-alias-label-primary);
+  pointer-events: auto;
+  overflow: hidden;
+  /* Collapse mirrors the sidebar's track animation: width rides the same
+   * curve so the rail and the column edges stay in step. */
+  transition: width var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+/* Collapsed rail: the mirror of the sidebar's 56px compact rail — only the
+ * expand toggle stays, top-aligned like the sidebar's collapsed logo row. */
+.panel.collapsed {
+  width: 56px;
+  padding: 18px 10px 6px;
+  align-items: center;
+}
+
+/* Left-edge resize strip (mirrors the sidebar's 8px drag handle): pointer
+ * capture + col-resize cursor, no chrome. Sits inside the panel so the
+ * column's own overflow clip keeps it tidy. */
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+/* Dragging writes widths at pointer cadence; easing them would detach the
+ * edge from the pointer (same rule as AppFrame's drag handles). */
+.panel[data-resizing] {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    transition: none;
+  }
+}
+
+/* Centered pop-out: the shared Modal's dialog, widened for a file preview.
+ * The Modal owns mask, card surface, header, close, and Escape; this module
+ * only sizes it and scrolls the body. */
+.centerModal {
+  width: min(720px, calc(100vw - 320px));
+  max-height: calc(100vh - 96px);
+}
+
+.centerBody {
+  overflow: auto;
+  max-height: calc(100vh - 220px);
+  font-size: 13px;
+  line-height: 20px;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+/* Header row: a 60px top row mirroring the left sidebar's logoRow, so the tab
+ * capsule below lands at the same vertical level as the sidebar's new-session
+ * control. The collapse toggle sits at the row's inner (left) edge — the
+ * mirror of the sidebar's toggle at its inner (right) edge. */
+.headerRow {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  /* Zero left/right inset: the toggle sits 12px from the panel's inner edge
+   * (the panel's own 12px padding), mirroring the sidebar's toggle at 12px
+   * from its inner edge; utilities share the same right inset. */
+  padding: 8px 0;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.headerUtilities {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.headerUtilities:empty {
+  display: none;
+}
+
+/* Collapse toggle (expanded): the sidebar iconButton's 28px round geometry. */
+.headerToggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.headerToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* The panel-left glyph mirrored horizontally reads as a panel docked right. */
+.headerToggleGlyph {
+  transform: scaleX(-1);
+}
+
+/* Collapsed rail toggle: the sidebar's 36px collapsed iconButton geometry. */
+.railToggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dsw-alias-label-primary);
+}
+
+.railToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.railToggleGlyph {
+  transform: scaleX(-1);
+}
+
+/* Tab bar: a 38px row mirroring the sidebar's new-session control height, so
+ * the capsule's label baseline matches the "新会话" label. */
+.tabs {
+  display: flex;
+  flex: none;
+  height: 38px;
+  margin: 0 2px 8px;
+  box-sizing: border-box;
+}
+
+.tabGroup {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.tab {
+  flex: 1;
+  height: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.tabActive {
+  background: var(--dsw-alias-button-floating-fill);
+  color: var(--dsw-alias-label-primary);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* ---- context tab ---- */
+
+.contextLayout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.docHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: none;
+}
+
+.docCount {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.docList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.docLi + .docLi {
+  border-top: 1px solid var(--dsw-alias-border-l3);
+}
+
+.docItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.docItem:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.docSelected {
+  background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover));
+}
+
+.docLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docBadge {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.docTime {
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.previewHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l3);
+}
+
+.previewLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+
+.loadMore {
+  flex: none;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.loadMore:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.loadMore:disabled {
+  color: var(--dsw-alias-label-caption);
+  cursor: default;
+}
+
+.preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--dsw-alias-bg-layer-1);
+  font-size: 13px;
+  line-height: 20px;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+/* ---- files tab ---- */
+
+.treeLayout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filterRow {
+  flex: none;
+}
+
+.filterInput {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 5px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  outline: none;
+}
+
+.filterInput::placeholder {
+  color: var(--dsw-alias-label-caption);
+}
+
+.filterInput:focus-visible {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.treeBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+/* With a file open the tree keeps at most half the tab so the preview pane
+ * stays readable without scrolling the whole surface. */
+.treeBodySqueezed {
+  flex: 0 1 50%;
+  max-height: 50%;
+}
+
+.filePreview {
+  flex: 1;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  overflow: hidden;
+}
+
+.filePreview .previewHeader {
+  flex: none;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.filePreviewBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 20px;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.filePreviewText {
+  margin: 0;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.fileRowOpenable {
+  cursor: pointer;
+}
+
+.fileRowSelected,
+.fileRowSelected:hover {
+  background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover));
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 28px;
+  padding: 3px 4px 3px 0;
+  border-radius: 6px;
+}
+
+.row:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.chevron {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.chevronGlyph {
+  color: currentColor;
+}
+
+.chevron:hover {
+  background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover));
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Folder, file, and loop-leaf rows seat their glyph in a fixed-width column so
+ * names align across kinds; files leave it empty (the design system ships no
+ * file glyph yet, and a folder glyph here would lie). */
+.rowGlyph {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 22px;
+  margin: 0 3px;
+}
+
+.rowGlyphIcon {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.fileName {
+  font-weight: 400;
+}
+
+.openButton {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+  padding: 2px 6px;
+  visibility: hidden;
+}
+
+.row:hover .openButton {
+  visibility: visible;
+}
+
+.openButton:hover {
+  background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover));
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Copy-path control: same hover-revealed seat as the open button, icon-only. */
+.copyButton {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  padding: 0;
+  visibility: hidden;
+}
+
+.row:hover .copyButton,
+.copyButton:focus-visible {
+  visibility: visible;
+}
+
+.copyButton:hover {
+  background: var(--dsw-alias-interactive-bg-active, var(--dsw-alias-interactive-bg-hover));
+  color: var(--dsw-alias-label-primary);
+}
+
+.copyGlyph {
+  color: currentColor;
+}
+
+.rowNote {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  padding: 2px 0;
+}
+
+.rowError {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* ---- shared ---- */
+
+.empty {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+  margin: 12px 4px;
+}
+
+.emptyBox {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.refresh {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.refresh:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Main-track conversation reserve: the fork's ui-conversation reads
+ * --dsh-context-panel-width; stock dsh composes no such rule, and its shell
+ * overlays float above the frame. Pad every direct column of the AppFrame
+ * root (the element whose direct child is the [data-shell-overlay] layer)
+ * except the overlay itself and the left sidebar, driven by the panel's own
+ * --dsh-compass-width variable (0px when collapsed). On the fork both rules
+ * stay independent: this one reads the compass variable, the fork rule reads
+ * the context-panel variable, so no composition double-pads. */
+:global(div:has(> [data-shell-overlay]) > div:not([data-shell-overlay]):not(:first-child)) {
+  margin-right: var(--dsh-compass-width, 0px);
+}
