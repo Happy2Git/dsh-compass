@@ -24,7 +24,7 @@ import {
 } from './git-seam.ts'
 import type {
   GitCommitDetail, GitCommitFile, GitCommitFileStatus, GitFileDiff, GitGraphEntry, GitGraphPage, GitGraphOptions,
-  GitWorkspaceFile, GitWorkspaceStatus,
+  GitStatusFile, GitWorkspaceFile, GitWorkspaceStatus,
 } from './git-seam.ts'
 
 /** Validated plugin configuration. */
@@ -160,6 +160,16 @@ function readWorkspaceBody(body: unknown): { cwd: string } {
   return { cwd: record.cwd }
 }
 
+/** Validate one status-request body into `dir`. */
+function readStatusBody(body: unknown): { dir: string } {
+  if (typeof body !== 'object' || body === null) throw new RouteError(400, 'missing dir')
+  const record = body as { dir?: unknown }
+  if (typeof record.dir !== 'string' || record.dir === '' || !fullyQualified(record.dir)) {
+    throw new RouteError(400, 'dir must be an absolute path')
+  }
+  return { dir: record.dir }
+}
+
 /** Validate one show-diff-request body into `cwd` + `hash` + `path`. */
 function readShowDiffBody(body: unknown): { cwd: string; hash: string; path: string } {
   if (typeof body !== 'object' || body === null) throw new RouteError(400, 'missing cwd, hash, or path')
@@ -183,6 +193,8 @@ function statusKind(letter: string): GitCommitFileStatus {
 
 /** Map a porcelain-v1 XY pair onto the closed workspace-file status. */
 function workspaceStatusKind(xy: string): GitWorkspaceFile['status'] {
+  if (xy === '!!') return 'ignored'
+  if (xy === '??') return 'untracked'
   if (xy.includes('A')) return 'added'
   if (xy.includes('D')) return 'deleted'
   return 'modified'
@@ -313,6 +325,20 @@ export default class LocalGit extends Git {
         }
       },
     }), 'git-local: /git/show-diff')
+    this.ctx.effect(() => this.ctx.webServer.register({
+      kind: 'exact',
+      path: '/git/status',
+      handler: async (req, res) => {
+        const signal = requestSignal(res)
+        try {
+          const body = readStatusBody(await readJsonBody(req))
+          const files = await this.directoryStatus(body.dir, signal)
+          writeJson(res, 200, { files })
+        } catch (error: unknown) {
+          writeJson(res, statusOf(error), { error: { message: messageOf(error) } })
+        }
+      },
+    }), 'git-local: /git/status')
   }
 
   /**
@@ -500,6 +526,44 @@ export default class LocalGit extends Git {
       })
     }
     return { branch, upstream, ahead, behind, files, truncated }
+  }
+
+  async directoryStatus(dir: string, signal?: AbortSignal): Promise<GitStatusFile[]> {
+    // A path outside any repository reports an empty list (the directory
+    // browser shows no badges) rather than a failure.
+    let prefix: string
+    try {
+      prefix = (await this.runGitStrict(dir, ['rev-parse', '--show-prefix'], signal)).trim()
+    } catch (error) {
+      if (error instanceof GitError && error.code === 'not-a-repository') return []
+      throw error
+    }
+    let output: string
+    try {
+      output = await this.runGitStrict(dir, ['status', '--porcelain=v1', '--ignored', '--untracked-files=all', '--', '.'], signal)
+    } catch (error) {
+      if (error instanceof GitError && error.code === 'not-a-repository') return []
+      throw error
+    }
+    const files: GitStatusFile[] = []
+    for (const line of output.split('\n')) {
+      if (line.length < 3) continue
+      const xy = line.slice(0, 2)
+      let rest = line.slice(3)
+      // Renames/copies print `old -> new`; the badge shows the new path.
+      const arrow = rest.indexOf(' -> ')
+      if (arrow !== -1) rest = rest.slice(arrow + 4)
+      if (!rest.startsWith(prefix)) continue
+      rest = rest.slice(prefix.length)
+      // Only direct children of the browsed directory carry a badge; deeper
+      // paths belong to a deeper listing.
+      if (rest.includes('/')) continue
+      if (rest === '') continue
+      files.push({ name: rest, status: workspaceStatusKind(xy) })
+    }
+    // Code-unit name order: deterministic across locales.
+    files.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
+    return files
   }
 
   async showFileDiff(cwd: string, hash: string, path: string, signal?: AbortSignal): Promise<GitFileDiff> {

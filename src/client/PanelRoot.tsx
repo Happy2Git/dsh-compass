@@ -159,7 +159,7 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // Injected callbacks as locals: passing a property function reference
   // onward would trip the unbound-method lint and hide the ownership.
   const {
-    actions, renderSlot, listDirectory, openPath, readText, gitGraph, gitShowCommit,
+    actions, renderSlot, listDirectory, gitStatusFor, openPath, readText, gitGraph, gitShowCommit,
     workspaceStatus, showFileDiff, readInjectedDocs, hasMoreDocs, loadOlderDocs,
   } = props
   const sessions = props.useSessions(s => s)
@@ -370,6 +370,7 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
                   onToggleDir={actions.toggleDir}
                   onFilter={actions.setFilter}
                   listDirectory={listDirectory}
+                  gitStatusFor={gitStatusFor}
                   openPath={openPath}
                   onOpenFile={actions.openCenter}
                   hasSession={current !== undefined}

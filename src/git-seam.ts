@@ -35,7 +35,7 @@ export interface GitGraphPage {
 }
 
 /** Change kind of one file within a commit or in the working tree. */
-export type GitCommitFileStatus = 'added' | 'modified' | 'deleted' | 'untracked'
+export type GitCommitFileStatus = 'added' | 'modified' | 'deleted' | 'untracked' | 'ignored'
 
 /** One file a commit touched, with its line-count facts. */
 export interface GitCommitFile {
@@ -99,6 +99,14 @@ export interface GitWorkspaceStatus {
   files: GitWorkspaceFile[]
   /** True when the backend cut `files` at its complete-result bound. */
   truncated: boolean
+}
+
+/** One direct child's working-tree status for the directory browser. */
+export interface GitStatusFile {
+  /** Base name within the listed directory. */
+  name: string
+  /** Working-tree status (`ignored` comes from git's own ignore rules). */
+  status: GitCommitFileStatus
 }
 
 /** One file's diff within one commit. */
@@ -186,6 +194,17 @@ export abstract class Git extends Service {
    * when `cwd` is not inside a git repository, `commit-unreadable` when the hash cannot be read.
    */
   abstract showFileDiff(cwd: string, hash: string, path: string, signal?: AbortSignal): Promise<GitFileDiff>
+
+  /**
+   * The working-tree status of one directory's direct children, for the
+   * directory browser's per-file badges. A path outside any repository
+   * reports an empty list rather than failing.
+   * @param dir - absolute path of the directory to inspect (any depth inside a repository).
+   * @param signal - caller lifetime; abort stops the git scan and rejects with the abort reason.
+   * @returns one entry per direct child that git reports (modified, added,
+   * untracked, or ignored); clean children carry no entry.
+   */
+  abstract directoryStatus(dir: string, signal?: AbortSignal): Promise<GitStatusFile[]>
 }
 
 export default Git

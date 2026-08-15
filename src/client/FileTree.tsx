@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DirectoryListing } from '../directory-types.ts'
+import type { GitCommitFileStatus } from '../git-seam.ts'
 import {
   IconCheckOutline16, IconChevronDownOutline14, IconChevronRightOutline14, IconCopyOutline16,
   IconFolderClose16, IconFolderOpen16, IconRefreshOutline14,
@@ -42,6 +43,8 @@ export interface FileTreeProps {
   onToggleDir: (path: string) => void
   onFilter: (filter: string) => void
   listDirectory: InjectedFace['listDirectory']
+  /** Per-directory working-tree statuses for the git badges. */
+  gitStatusFor: InjectedFace['gitStatusFor']
   openPath: InjectedFace['openPath']
   /** Open a file in the centered preview. */
   onOpenFile: (path: string) => void
@@ -50,6 +53,28 @@ export interface FileTreeProps {
 
 /** One row's per-level indentation. */
 const INDENT_PX = 16
+
+/** Short badge letter + full word for one git status. */
+function statusBadge(status: GitCommitFileStatus): { letter: string; title: string } {
+  switch (status) {
+    case 'added': return { letter: 'A', title: '新增' }
+    case 'modified': return { letter: 'M', title: '修改' }
+    case 'deleted': return { letter: 'D', title: '删除' }
+    case 'untracked': return { letter: 'U', title: '未跟踪' }
+    case 'ignored': return { letter: '!', title: '忽略' }
+  }
+}
+
+/** The git status badge for one row, or null when the directory has no status for it. */
+function GitStatusBadge({ status }: { status: GitCommitFileStatus | undefined }): ReactNode {
+  if (status === undefined) return null
+  const { letter, title } = statusBadge(status)
+  return (
+    <span className={`${css.gitBadge} ${css[`gitBadge_${status}`]}`} title={`git: ${title}`} aria-label={`git: ${title}`}>
+      {letter}
+    </span>
+  )
+}
 
 /** How long the copy glyph stays as a check after a successful write, in ms. */
 const COPIED_FEEDBACK_MS = 1000
@@ -92,6 +117,7 @@ function CopyPathButton({ path }: { path: string }): ReactNode {
  */
 export function FileTree(props: FileTreeProps): ReactNode {
   const [dirs, setDirs] = useState<ReadonlyMap<string, DirState>>(new Map())
+  const [statuses, setStatuses] = useState<ReadonlyMap<string, ReadonlyMap<string, GitCommitFileStatus>>>(new Map())
   const [rootLabel, setRootLabel] = useState<string | null>(null)
   /** In-flight listing controllers, aborted on root change and unmount. */
   const loadersRef = useRef<AbortController[]>([])
@@ -116,6 +142,22 @@ export function FileTree(props: FileTreeProps): ReactNode {
         }))
         const tail = listing.crumbs[listing.crumbs.length - 1]
         setRootLabel(tail?.name ?? listing.path)
+        // Per-child git badges: any failure (not a repository included) just
+        // leaves the listing unbadged.
+        const statusCtl = new AbortController()
+        loadersRef.current.push(statusCtl)
+        void props.gitStatusFor(path, statusCtl.signal).then(
+          (files) => {
+            loadersRef.current = loadersRef.current.filter(candidate => candidate !== statusCtl)
+            if (statusCtl.signal.aborted) return
+            const byName = new Map<string, GitCommitFileStatus>()
+            for (const file of files) byName.set(file.name, file.status)
+            setStatuses(prev => new Map(prev).set(path, byName))
+          },
+          () => {
+            loadersRef.current = loadersRef.current.filter(candidate => candidate !== statusCtl)
+          },
+        )
       },
       (error: unknown) => {
         settled()
@@ -157,6 +199,12 @@ export function FileTree(props: FileTreeProps): ReactNode {
   const renderRows = (path: string, name: string, depth: number, keyPrefix: string, ancestors: ReadonlySet<string>): ReactNode[] => {
     const rows: ReactNode[] = []
     const rowKey = `${keyPrefix}|${path}`
+    // A row's badge comes from its parent directory's status map; the root row
+    // has no parent and stays unbadged.
+    const rowParent = [...ancestors].at(-1)
+    const badgeStatus = rowParent === undefined || rowParent === path
+      ? undefined
+      : statuses.get(rowParent)?.get(name)
     const expanded = props.expandedDirs.includes(path)
     const state = dirs.get(path)
     rows.push(
@@ -176,6 +224,7 @@ export function FileTree(props: FileTreeProps): ReactNode {
             ? <IconFolderOpen16 className={css.rowGlyphIcon} />
             : <IconFolderClose16 className={css.rowGlyphIcon} />}
         </span>
+        <GitStatusBadge status={badgeStatus} />
         <span className={css.rowName} title={path}>{name}</span>
         <CopyPathButton path={path} />
         <button
@@ -224,6 +273,7 @@ export function FileTree(props: FileTreeProps): ReactNode {
             <span className={css.rowGlyph} aria-hidden="true">
               <FileGlyph name={entry.name} />
             </span>
+            <GitStatusBadge status={statuses.get(path)?.get(entry.name)} />
             <span className={clsx(css.rowName, css.fileName)} title={entry.path}>{entry.name}</span>
             <CopyPathButton path={entry.path} />
           </div>,

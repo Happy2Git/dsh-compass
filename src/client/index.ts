@@ -14,7 +14,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { DirectoryListing, DirectoryRead } from '../directory-types.ts'
-import type { GitFileDiff, GitWorkspaceStatus } from '../git-seam.ts'
+import type { GitFileDiff, GitStatusFile, GitWorkspaceStatus } from '../git-seam.ts'
 import { PanelRoot } from './PanelRoot.tsx'
 import { hasMoreDocs, loadOlderDocs, readInjectedDocs } from './read-context.ts'
 import { createPanelStore } from './store.ts'
@@ -81,6 +81,7 @@ export function apply(ctx: ClientContext): void {
       gitShowCommit: (cwd, hash, signal) => routeFetch('/git/show-commit', { cwd, hash }, signal),
       workspaceStatus: (cwd, signal): Promise<GitWorkspaceStatus> => routeFetch<GitWorkspaceStatus>('/git/workspace', { cwd }, signal),
       showFileDiff: (cwd, hash, path, signal): Promise<GitFileDiff> => routeFetch<GitFileDiff>('/git/show-diff', { cwd, hash, path }, signal),
+      gitStatusFor: (dir, signal): Promise<GitStatusFile[]> => routeFetch<{ files: GitStatusFile[] }>('/git/status', { dir }, signal).then(value => value.files),
       readInjectedDocs: (sessionId: SessionId): ContextDoc[] => readInjectedDocs(ctx, sessionId),
       hasMoreDocs: (sessionId: SessionId): boolean => hasMoreDocs(ctx, sessionId),
       loadOlderDocs: (sessionId: SessionId): Promise<void> => loadOlderDocs(ctx, sessionId),

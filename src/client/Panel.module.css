@@ -711,3 +711,38 @@
   font-size: 12px;
   color: var(--dsw-alias-label-secondary);
 }
+
+/* Per-file git working-tree badges in the directory tree. */
+.gitBadge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+}
+
+.gitBadge_added {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.gitBadge_modified {
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+.gitBadge_deleted {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.gitBadge_untracked {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.gitBadge_ignored {
+  color: var(--dsw-alias-label-tertiary);
+}
