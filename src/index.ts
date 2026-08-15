@@ -34,6 +34,7 @@ export const inject = ['commands']
 export const Config: z<Config> = z.object({
   maxEntries: z.natural().min(1).default(1000),
   maxTextBytes: z.natural().min(1).default(262144),
+  maxImageBytes: z.natural().min(1).default(8 * 1024 * 1024),
 })
 
 const REQUESTED: CommandResult = {
@@ -47,7 +48,7 @@ const REQUESTED: CommandResult = {
  */
 export function apply(ctx: Context, config: Config): void {
   ctx.plugin(LocalGit)
-  ctx.plugin(DirectoryRoutes, { maxEntries: config.maxEntries, maxTextBytes: config.maxTextBytes })
+  ctx.plugin(DirectoryRoutes, { maxEntries: config.maxEntries, maxTextBytes: config.maxTextBytes, maxImageBytes: config.maxImageBytes })
   ctx.effect(() => ctx.commands.register({
     name: 'export',
     description: 'Download this Session log as a ZIP archive',

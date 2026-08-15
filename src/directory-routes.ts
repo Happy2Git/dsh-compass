@@ -16,7 +16,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { execFile } from 'node:child_process'
 import z from '@deepseek-ai/schemastery'
-import { createDirectory, listDirectory, readTextFile, type BrowseConfig } from './directory-browse.ts'
+import { createDirectory, listDirectory, readImageFile, readTextFile, type BrowseConfig } from './directory-browse.ts'
 
 /** Testable command boundary; native implementations never invoke a shell. */
 export type NativeCommandRunner = (
@@ -184,6 +184,23 @@ async function serve(res: ServerResponse, run: () => Promise<unknown>): Promise<
   }
 }
 
+/** The raster formats panel image intake serves, matched by magic bytes. */
+const IMAGE_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] as const
+
+/**
+ * Match encoded raster bytes against the fixed format set: the actual header,
+ * never a filename extension (a renamed file's extension lies, its magic
+ * bytes do not). Unknown content has no image intake path.
+ */
+function sniffImageMediaType(data: Uint8Array): (typeof IMAGE_MEDIA_TYPES)[number] | undefined {
+  const head = Buffer.from(data.buffer, data.byteOffset, Math.min(data.byteLength, 12))
+  if (head.length >= 8 && head.readUInt32BE(0) === 0x89504e47) return 'image/png'
+  if (head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return 'image/jpeg'
+  if (head.length >= 12 && head.toString('ascii', 0, 4) === 'RIFF' && head.toString('ascii', 8, 12) === 'WEBP') return 'image/webp'
+  if (head.length >= 6 && (head.toString('ascii', 0, 6) === 'GIF87a' || head.toString('ascii', 0, 6) === 'GIF89a')) return 'image/gif'
+  return undefined
+}
+
 /** The route-registration plugin body. */
 export default class DirectoryRoutes {
   static inject = ['webServer']
@@ -191,6 +208,7 @@ export default class DirectoryRoutes {
   static Config: z<BrowseConfig> = z.object({
     maxEntries: z.natural().min(1).default(1000),
     maxTextBytes: z.natural().min(1).default(262144),
+    maxImageBytes: z.natural().min(1).default(8 * 1024 * 1024),
   })
 
   constructor(ctx: Context, private readonly config: BrowseConfig) {
@@ -223,6 +241,29 @@ export default class DirectoryRoutes {
         })
       },
     }), 'directory-routes: /dir/read-text')
+    ctx.effect(() => ctx.webServer.register({
+      kind: 'exact',
+      path: '/dir/read-image',
+      handler: async (req, res) => {
+        const signal = requestSignal(res)
+        await serve(res, async () => {
+          const path = readAbsolutePath(await readJsonBody(req))
+          const read = await readImageFile(this.config, path, signal)
+          // The attachment per-file limit is the authoritative intake bound
+          // when the host composes an attachment store; enforce it here so an
+          // oversized image never crosses the wire just to be refused.
+          const attachments = ctx.get('attachments') as {
+            imageLimits: { maxImageBytes: number }
+          } | undefined
+          if (attachments !== undefined && read.data.byteLength > attachments.imageLimits.maxImageBytes) {
+            throw new RouteError(413, 'image exceeds the configured per-file limit')
+          }
+          const mediaType = sniffImageMediaType(read.data)
+          if (mediaType === undefined) throw new RouteError(415, 'not a supported image format')
+          return { path: read.path, mediaType, data: Buffer.from(read.data).toString('base64') }
+        })
+      },
+    }), 'directory-routes: /dir/read-image')
     ctx.effect(() => ctx.webServer.register({
       kind: 'exact',
       path: '/dir/open-path',

@@ -13,7 +13,7 @@
 import { mkdir, open, opendir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, posix, resolve, win32 } from 'node:path'
-import { BrowseError, type DirectoryEntry, type DirectoryListing, type DirectoryRead } from './directory-types.ts'
+import { BrowseError, type DirectoryEntry, type DirectoryImageRead, type DirectoryListing, type DirectoryRead } from './directory-types.ts'
 
 /** Validated browser bounds, owned by the plugin's Config. */
 export interface BrowseConfig {
@@ -21,6 +21,8 @@ export interface BrowseConfig {
   maxEntries: number
   /** Complete-read bound of one text file, in bytes. */
   maxTextBytes: number
+  /** Fail-closed read bound of one image file, in bytes (never cut; past it the read refuses). */
+  maxImageBytes: number
 }
 
 /**
@@ -322,6 +324,49 @@ export async function readTextFile(config: BrowseConfig, path: string, signal?: 
   } catch (error: unknown) {
     // An abort is the caller's own reason, not an unreadable file; the
     // binary verdict is already dressed above.
+    signal?.throwIfAborted()
+    if (error instanceof BrowseError) throw error
+    throw new BrowseError('file-unreadable', target, `cannot read ${target}: ${messageOf(error)}`)
+  }
+}
+
+/**
+ * Read one image file's raw bytes, fail-closed at `maxImageBytes` (the +1
+ * byte proves the oversize without holding more than the bound plus one).
+ * @param config - listing and read bounds.
+ * @param path - absolute path of the file to read.
+ * @param signal - caller lifetime; abort stops the read.
+ * @returns the exact bytes (never a cut read).
+ * @throws {BrowseError} `file-unreadable` when the file cannot be read,
+ * `file-too-large` when it exceeds the bound.
+ */
+export async function readImageFile(config: BrowseConfig, path: string, signal?: AbortSignal): Promise<DirectoryImageRead> {
+  if (!fullyQualified(path)) {
+    throw new BrowseError('file-unreadable', path, `cannot read "${path}": not a fully qualified path`)
+  }
+  const target = resolve(path)
+  try {
+    const opening = open(target, 'r')
+    const handle = await raceAbort(opening, signal).catch((error: unknown) => {
+      void opening.then(h => h.close().catch(swallowCloseFailure), () => {})
+      throw error
+    })
+    try {
+      const buffer = Buffer.allocUnsafe(config.maxImageBytes + 1)
+      const { bytesRead } = await raceAbort(handle.read(buffer, 0, buffer.length, 0), signal)
+      if (bytesRead > config.maxImageBytes) {
+        throw new BrowseError('file-too-large', target, `${target} exceeds the image byte bound`)
+      }
+      return { path: target, data: new Uint8Array(buffer.subarray(0, bytesRead)) }
+    } finally {
+      const closing = handle.close()
+      if (signal?.aborted) {
+        closing.catch(swallowCloseFailure)
+      } else {
+        await closing
+      }
+    }
+  } catch (error: unknown) {
     signal?.throwIfAborted()
     if (error instanceof BrowseError) throw error
     throw new BrowseError('file-unreadable', target, `cannot read ${target}: ${messageOf(error)}`)

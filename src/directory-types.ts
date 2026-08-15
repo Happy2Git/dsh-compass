@@ -41,6 +41,14 @@ export interface DirectoryListing {
 }
 
 /** One bounded text-file read. */
+/** Bounded raw read of one file for image intake, as the browser reports it. */
+export interface DirectoryImageRead {
+  /** Absolute path of the read file. */
+  path: string
+  /** Exact raw bytes (never cut; the read fails closed past the bound). */
+  data: Uint8Array
+}
+
 export interface DirectoryRead {
   /** Absolute path of the file read. */
   path: string
@@ -51,7 +59,7 @@ export interface DirectoryRead {
 }
 
 /** Closed failure vocabulary of the directory browser. */
-export type BrowseErrorCode = 'directory-unreadable' | 'directory-exists' | 'directory-create-failed' | 'file-unreadable' | 'file-not-text'
+export type BrowseErrorCode = 'directory-unreadable' | 'directory-exists' | 'directory-create-failed' | 'file-unreadable' | 'file-not-text' | 'file-too-large'
 
 /** Typed failure thrown by the browser primitives (the route layer maps the message onto the wire). */
 export class BrowseError extends Error {

@@ -21,6 +21,14 @@ import { FileGlyph } from './file-icon.tsx'
 import css from './Panel.module.css'
 import type { InjectedFace } from './types.ts'
 
+/**
+ * Drag payload type for panel file rows: the composer's whole-page drop
+ * intake reads this type and treats the value as an absolute host path.
+ * Literal duplicated in ui-conversation's InputBar (cross-package wire
+ * contract; neither package may import the other).
+ */
+const PANEL_PATH_MIME = 'application/x-dsh-path'
+
 /** One directory row of a listing (derived — api-remotes exports the listing, not the row). */
 type DirectoryEntry = DirectoryListing['entries'][number]
 
@@ -264,6 +272,13 @@ export function FileTree(props: FileTreeProps): ReactNode {
             style={{ paddingLeft: `${8 + (depth + 1) * INDENT_PX}px` }}
             role="button"
             tabIndex={0}
+            draggable
+            onDragStart={(event) => {
+              // Wire contract shared with ui-conversation's composer intake:
+              // the drag carries the absolute host path, not browser bytes.
+              event.dataTransfer.setData(PANEL_PATH_MIME, entry.path)
+              event.dataTransfer.effectAllowed = 'copy'
+            }}
             onClick={() => { props.onOpenFile(entry.path) }}
             onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') props.onOpenFile(entry.path)
