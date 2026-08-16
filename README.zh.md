@@ -2,27 +2,31 @@
 
 [English](README.md) | 中文
 
-单包形态的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件：为 Web 界面新增右侧上下文文件面板——目录浏览、注入上下文文档、只读 Git 提交图，以及会话日志下载动作。
+单包形态的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件：为 Web 界面新增右侧上下文文件面板——带 git 状态徽章的目录浏览、实时重投影的注入上下文文档与压缩历史流水、带边框的只读 Git 提交图与工作区状态、面板文件拖入对话（支持图片的模型直接收图），以及会话日志下载动作。
 
 一个包 = 一个 bundle = 一行 loader 条目：host 半把本地 Git 后端（`/git/*`）、插件自有目录路由（`/dir/*`）和 `/export` 命令作为子插件挂载；浏览器半把面板注册进 `shell.overlay`，把下载动作注册进面板头部工具区。
 
 ## 截图
 
-**文件夹标签** — 惰性目录树，目录优先排序，按名过滤，每行带打开/复制操作：
+**文件夹标签** — 惰性目录树，目录优先排序，按名过滤，带 git 工作区状态徽章，每行可打开/复制：
 
 ![文件夹标签](screenshots/01-files-tab.png)
 
-**Git 标签** — 只读提交图，泳道、引用徽章、懒加载提交展开：
+**Git 标签** — 带边框的工作区区块加提交树：分支位置、未提交文件、泳道、引用徽章、惰性展开提交与刷新按钮：
 
 ![Git 标签](screenshots/02-git-tab.png)
 
-**上下文标签** — 会话的注入上下文文档，带「加载更早」分页：
+**上下文标签** — 注入上下文文档分为当前有效窗口与压缩历史流水，带搜索；视图随会话事件流实时重投影，检查点落地时自动翻一批历史：
 
 ![上下文标签](screenshots/03-context-tab.png)
 
 **目录优先** — 指向目录的符号链接与目录同组排序：
 
 ![文件夹标签，目录优先](screenshots/04-files-tab-dirs-first.png)
+
+**面板文件拖入** — 文件行把绝对路径拖进对话；图片文件在支持视觉的模型上直接附加内容，其他模型收到路径说明：
+
+![面板文件拖入](screenshots/05-drag-image.png)
 
 ## main-track 兼容性
 
