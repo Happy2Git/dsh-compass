@@ -160,7 +160,7 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // onward would trip the unbound-method lint and hide the ownership.
   const {
     actions, renderSlot, listDirectory, gitStatusFor, openPath, readText, gitGraph, gitShowCommit,
-    workspaceStatus, showFileDiff, readInjectedDocs, hasMoreDocs, loadOlderDocs, useDocsStream,
+    workspaceStatus, showFileDiff, readInjectedDocs, compactionBoundary, hasMoreDocs, loadOlderDocs, useDocsStream,
   } = props
   const sessions = props.useSessions(s => s)
   const state = props.useStore(s => s)
@@ -264,6 +264,33 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
       },
     ).then(() => { setLoadingOlder(false) })
   }
+
+  // The history stream fills from documents a compaction checkpoint shadows,
+  // and those lie just BEFORE the checkpoint — outside the loaded tail
+  // window. When a checkpoint first appears in the projection, page one older
+  // batch back so the shadowed documents enter the window (and the stream)
+  // without a manual click. One page per checkpoint: the manual control owns
+  // anything deeper.
+  const pagedBoundary = useRef<number | null>(null)
+  useEffect(() => {
+    if (current === undefined) return
+    const boundary = compactionBoundary(current)
+    if (boundary === null || boundary === pagedBoundary.current) return
+    // Mark only once the page actually goes out: a checkpoint landing while
+    // another page is in flight keeps its turn and retries on the next run.
+    if (!hasMoreDocs(current) || loadingOlder) return
+    pagedBoundary.current = boundary
+    setLoadingOlder(true)
+    void loadOlderDocs(current).then(
+      () => {
+        setDocs(readInjectedDocs(current))
+      },
+      () => {
+        // Swallow the load failure: the history stream simply waits for the
+        // next checkpoint (the manual control remains available).
+      },
+    ).then(() => { setLoadingOlder(false) })
+  }, [current, docsStream, compactionBoundary, hasMoreDocs, loadOlderDocs, readInjectedDocs, loadingOlder])
 
   return (
     <>

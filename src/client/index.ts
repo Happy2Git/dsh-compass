@@ -17,7 +17,7 @@ import type { DirectoryListing, DirectoryRead } from '../directory-types.ts'
 import type { GitFileDiff, GitStatusFile, GitWorkspaceStatus } from '../git-seam.ts'
 import { PanelRoot } from './PanelRoot.tsx'
 import { docsStreamFor } from './docs-stream.ts'
-import { hasMoreDocs, loadOlderDocs, readInjectedDocs } from './read-context.ts'
+import { compactionBoundary, hasMoreDocs, loadOlderDocs, readInjectedDocs } from './read-context.ts'
 import { createPanelStore } from './store.ts'
 import type { ContextDoc, InjectedFace } from './types.ts'
 
@@ -87,6 +87,7 @@ export function apply(ctx: ClientContext): void {
       showFileDiff: (cwd, hash, path, signal): Promise<GitFileDiff> => routeFetch<GitFileDiff>('/git/show-diff', { cwd, hash, path }, signal),
       gitStatusFor: (dir, signal): Promise<GitStatusFile[]> => routeFetch<{ files: GitStatusFile[] }>('/git/status', { dir }, signal).then(value => value.files),
       readInjectedDocs: (sessionId: SessionId): ContextDoc[] => readInjectedDocs(ctx, sessionId),
+      compactionBoundary: (sessionId: SessionId): number | null => compactionBoundary(ctx, sessionId),
       hasMoreDocs: (sessionId: SessionId): boolean => hasMoreDocs(ctx, sessionId),
       loadOlderDocs: (sessionId: SessionId): Promise<void> => loadOlderDocs(ctx, sessionId),
       sessionCwd: (sessionId: SessionId): string | undefined =>

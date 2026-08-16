@@ -52,6 +52,8 @@ export interface InjectedFace {
   gitStatusFor: (dir: string, signal: AbortSignal) => Promise<GitStatusFile[]>
   /** Project the injected-context documents of one session from its loaded log window. */
   readInjectedDocs: (sessionId: SessionId) => ContextDoc[]
+  /** The latest in-window compaction checkpoint's seq, or null when none is loaded. */
+  compactionBoundary: (sessionId: SessionId) => number | null
   /** Whether the session log has older pages beyond the loaded window. */
   hasMoreDocs: (sessionId: SessionId) => boolean
   /** Page one earlier history batch into the window (older documents then join the projection). */

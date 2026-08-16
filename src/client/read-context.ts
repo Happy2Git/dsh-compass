@@ -20,6 +20,24 @@ function contentText(content: readonly ContentBlock[]): string {
 }
 
 /**
+ * The latest in-window compaction checkpoint's seq, or null when the loaded
+ * window holds no checkpoint. Documents at or before that seq are shadowed
+ * (no longer in the model's live window) and belong to the history stream.
+ * @param ctx - client root context (sessions binding lookup).
+ * @param sessionId - target session.
+ * @returns the shadowing boundary, or null when none is loaded.
+ */
+export function compactionBoundary(ctx: ClientContext, sessionId: SessionId): number | null {
+  const binding = ctx.sessions.binding(sessionId)
+  if (binding === undefined) return null
+  let latest: number | null = null
+  for (const node of binding.session.getSnapshot().chat.legacy.nodes) {
+    if (node.kind === 'compaction' && (latest === null || node.seq > latest)) latest = node.seq
+  }
+  return latest
+}
+
+/**
  * Project the injected-context documents of one session, oldest first.
  * Unknown sessions and empty context messages produce no rows. Each document
  * carries an `active` flag: a compaction checkpoint (`kind: 'compaction'`)
@@ -33,12 +51,7 @@ export function readInjectedDocs(ctx: ClientContext, sessionId: SessionId): Cont
   const binding = ctx.sessions.binding(sessionId)
   if (binding === undefined) return []
   const snapshot = binding.session.getSnapshot()
-  // The latest compaction checkpoint's seq is the live-window boundary; -1
-  // (never compacted) keeps every document active.
-  let lastCompactionSeq = -1
-  for (const node of snapshot.chat.legacy.nodes) {
-    if (node.kind === 'compaction' && node.seq > lastCompactionSeq) lastCompactionSeq = node.seq
-  }
+  const lastCompactionSeq = compactionBoundary(ctx, sessionId) ?? -1
   const docs: ContextDoc[] = []
   for (const node of snapshot.chat.legacy.nodes) {
     if (node.kind !== 'context') continue
