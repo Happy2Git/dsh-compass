@@ -1,28 +1,33 @@
 /**
  * One bare observable over the panel's document stream: the current session's
- * conversation snapshot (reference-stable between changes) plus the session
- * id. The context tab re-projects its injected documents whenever the value
- * moves, so agent activity shows up without a manual refresh. Owned by the
- * plugin's inject `hooks` compartment; components never see this module.
+ * injected-document signature plus the session id. The value moves EXACTLY
+ * when the projected documents change — new injections, a compaction boundary
+ * move, or a session switch — and stays put across ordinary stream batches,
+ * so the panel re-projects only on real changes instead of re-rendering per
+ * batch during a streaming turn. Owned by the plugin's inject `hooks`
+ * compartment; components never see this module.
  */
 import type {
-  ClientContext, ConversationSnapshot, ObservableSnapshot, SessionId,
+  ClientContext, ObservableSnapshot, SessionId,
 } from '@deepseek-ai/dsh-client-runtime/client'
+import { readInjectedDocs } from './read-context.ts'
 
-/** One docs-stream value: which session, and its live conversation snapshot. */
+/** One docs-stream value: which session, and its live document signature. */
 export interface DocsStream {
   sessionId: SessionId | undefined
-  snapshot: ConversationSnapshot | undefined
+  /** Fold signature over the session's projected documents; null without a binding. */
+  signature: string | null
 }
 
 /** The empty stream value before the first follow. */
-const EMPTY: DocsStream = { sessionId: undefined, snapshot: undefined }
+const EMPTY: DocsStream = { sessionId: undefined, signature: null }
 
 /**
  * Follow the sessions feed: the value moves when the current session changes
- * or its conversation snapshot moves (the runtime republishes the snapshot
- * reference per event batch). Subscriptions start lazily with the first
- * listener and tear down with the last, so an unbound source follows nothing.
+ * or its document fold moves (the runtime republishes the conversation
+ * snapshot per event batch, but only fold changes pass the signature check).
+ * Subscriptions start lazily with the first listener and tear down with the
+ * last, so an unbound source follows nothing.
  * @param ctx - client root context (sessions binding lookup).
  * @returns the identity-stable observable source.
  */
@@ -33,31 +38,37 @@ export function docsStreamFor(ctx: ClientContext): ObservableSnapshot<DocsStream
   let listUnsub: (() => void) | null = null
   const listeners = new Set<() => void>()
 
+  /** The live fold signature for one session, or null without a binding. */
+  const signatureOf = (sessionId: SessionId | undefined): string | null => {
+    if (sessionId === undefined) return null
+    const docs = readInjectedDocs(ctx, sessionId)
+    return docs.map(doc => `${doc.seq}:${doc.active ? '1' : '0'}`).join(',')
+  }
   const publish = (next: DocsStream): void => {
-    if (next.sessionId === value.sessionId && next.snapshot === value.snapshot) return
+    if (next.sessionId === value.sessionId && next.signature === value.signature) return
     value = next
     for (const listener of listeners) listener()
   }
   const follow = (sessionId: SessionId | undefined): void => {
     const face = sessionId === undefined ? undefined : ctx.sessions.binding(sessionId)?.session
     // The list also notifies on non-selection facts (summaries, phases):
-    // re-publish the same session's snapshot reference — a no-op unless the
-    // session stream itself moved it.
+    // recompute the same session's signature — a no-op publish unless the
+    // fold actually moved.
     if (followed === sessionId) {
-      publish({ sessionId, snapshot: face?.getSnapshot() })
+      publish({ sessionId, signature: signatureOf(sessionId) })
       return
     }
     followed = sessionId
     sessionUnsub?.()
     sessionUnsub = null
     if (face === undefined) {
-      publish({ sessionId, snapshot: undefined })
+      publish({ sessionId, signature: null })
       return
     }
     sessionUnsub = face.subscribe(() => {
-      publish({ sessionId, snapshot: face.getSnapshot() })
+      publish({ sessionId, signature: signatureOf(sessionId) })
     })
-    publish({ sessionId, snapshot: face.getSnapshot() })
+    publish({ sessionId, signature: signatureOf(sessionId) })
   }
   const sync = (): void => {
     follow(ctx.sessions.list.getSnapshot().current)

@@ -57,17 +57,13 @@ export interface InjectedFace {
   /** The latest in-window compaction checkpoint's seq, or null when none is loaded. */
   compactionBoundary: (sessionId: SessionId) => number | null
   /**
-   * Pull one older history page of raw events (via the connection's history
-   * RPC) and fold it into injected-context documents, out-of-band: the shared
-   * conversation window stays untouched. `beforeSeq` anchors the page
-   * (undefined = the tail); `firstSeq` is the page's oldest seq for the next
-   * call, `hasMore` whether older pages remain. Failures answer an empty page
-   * (the caller's cap ends the walk).
+   * Fetch one session's complete injected-document source events through the
+   * plugin-owned `/dir/injected-docs` route (the host filters the durable log
+   * server-side, so tool payloads never cross the wire) and fold them with
+   * the same provenance readers as the live projection. The shared
+   * conversation window stays untouched. Failures answer an empty fold.
    */
-  pullDocsHistory: (
-    sessionId: SessionId,
-    beforeSeq: number | undefined,
-  ) => Promise<{ docs: ContextDoc[]; boundary: number; hasMore: boolean; firstSeq: number | null }>
+  fetchDocEvents: (sessionId: SessionId, signal: AbortSignal) => Promise<{ docs: ContextDoc[]; boundary: number }>
   /** Whether the session log has older pages beyond the loaded window. */
   hasMoreDocs: (sessionId: SessionId) => boolean
   /** Page one earlier history batch into the window (older documents then join the projection). */

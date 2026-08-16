@@ -40,13 +40,6 @@ function clampWidth(width: number): number {
   return Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, width))
 }
 
-/**
- * Complete-result bound of the history auto-walk: at most this many older
- * batches load automatically per session (50 messages each, so 1,000
- * messages); anything deeper stays behind the manual paging control.
- */
-const MAX_AUTO_PAGES = 20
-
 /** Centered pop-out: the selected file's full preview over the conversation. */
 function CenterPreview({ path, readText, onClose }: {
   path: string
@@ -174,7 +167,7 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // onward would trip the unbound-method lint and hide the ownership.
   const {
     actions, renderSlot, listDirectory, gitStatusFor, openPath, readText, gitGraph, gitShowCommit,
-    workspaceStatus, showFileDiff, showWorkspaceDiff, readInjectedDocs, compactionBoundary, pullDocsHistory,
+    workspaceStatus, showFileDiff, showWorkspaceDiff, readInjectedDocs, compactionBoundary, fetchDocEvents,
     hasMoreDocs, loadOlderDocs, useDocsStream,
   } = props
   const sessions = props.useSessions(s => s)
@@ -246,20 +239,23 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
     setResizing(false)
   }, [actions])
 
-  // Out-of-band history pull state: the privately pulled older documents and
-  // their latest compaction boundary, merged into the docs projection below.
-  const pulledSessions = useRef(new Set<SessionId>())
-  const [olderDocs, setOlderDocs] = useState<ContextDoc[]>([])
-  const [olderBoundary, setOlderBoundary] = useState(-1)
   // Projected injected documents: re-read when the session changes, the
   // manual refresh bumps, or the session stream advances (docsStream). A
   // signature guard keeps stream bumps from re-rendering when the projected
   // rows did not change (the docs are durable log events; only their set and
   // active flags move).
-  const docsSignature = useRef('')
+  // Out-of-band history fetch state: the privately fetched older documents and
+  // their latest compaction boundary, merged into the docs projection below.
+  const fetchedSessions = useRef(new Set<SessionId>())
+  const [olderDocs, setOlderDocs] = useState<ContextDoc[]>([])
+  const [olderBoundary, setOlderBoundary] = useState(-1)
+
+  // The docsStream value moves only when the projected documents change (the
+  // observable folds its own signature per batch), so this re-fold + merge
+  // runs on real changes — new injections, boundary moves, session switches,
+  // the manual refresh — never on ordinary stream batches.
   useEffect(() => {
     if (current === undefined) {
-      docsSignature.current = ''
       setDocs([])
       return
     }
@@ -267,11 +263,7 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
     // re-derives against the latest checkpoint either source saw.
     const live = readInjectedDocs(current)
     const boundary = Math.max(olderBoundary, compactionBoundary(current) ?? -1)
-    const next = mergeDocs(olderDocs, live, boundary)
-    const signature = `${current}:${next.map(doc => `${doc.seq}:${doc.active ? '1' : '0'}`).join(',')}`
-    if (signature === docsSignature.current) return
-    docsSignature.current = signature
-    setDocs(next)
+    setDocs(mergeDocs(olderDocs, live, boundary))
   }, [current, docsRev, docsStream, readInjectedDocs, compactionBoundary, olderDocs, olderBoundary])
 
   const handleLoadOlder = (): void => {
@@ -289,44 +281,42 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
     ).then(() => { setLoadingOlder(false) })
   }
 
-  // Out-of-band history pull: the panel owns its older pages, fetched through
-  // the connection's history RPC and folded privately, so the shared
-  // conversation window stays untouched — the chat keeps its own "load
-  // earlier" control and scroll anchors. Once per session, capped; live
-  // events still arrive through the stream and merge above. Failures answer
-  // empty pages, so the cap ends the pull without an error surface.
+  // Out-of-band complete-history fetch: the panel owns its older documents,
+  // fetched through the plugin-owned /dir/injected-docs route (the host
+  // filters the durable log server-side, so tool payloads never cross the
+  // wire) and folded privately — the shared conversation window stays
+  // untouched, and the chat keeps its own "load earlier" control and scroll
+  // anchors. Once per session; live events still arrive through the stream
+  // and merge above. Failures answer an empty fold.
   useEffect(() => {
-    if (current === undefined || pulledSessions.current.has(current)) return
+    if (current === undefined || fetchedSessions.current.has(current)) return
     // Wait for the session's own open: `hasMoreDocs` stays false until the
-    // runtime's first history page lands, so the pull never races the cold
-    // resume's window load (the stream bump after the open re-runs this).
+    // runtime's first history page lands, so the route's full-log read never
+    // races the cold resume's persistence load (the stream bump after the
+    // open re-runs this effect).
     if (!hasMoreDocs(current)) return
-    pulledSessions.current.add(current)
+    // Bound the marker set by the live session list: sessions that no longer
+    // exist leave no growing residue behind (the audit note's pattern).
+    const liveIds = new Set(sessions.ids)
+    for (const id of fetchedSessions.current) {
+      if (!liveIds.has(id)) fetchedSessions.current.delete(id)
+    }
+    fetchedSessions.current.add(current)
     setOlderDocs([])
     setOlderBoundary(-1)
-    void (async () => {
-      try {
-        const collected: ContextDoc[] = []
-        let boundary = -1
-        let beforeSeq: number | undefined
-        for (let pages = 0; pages < MAX_AUTO_PAGES; pages++) {
-          const page = await pullDocsHistory(current, beforeSeq)
-          collected.push(...page.docs)
-          boundary = Math.max(boundary, page.boundary)
-          if (page.hasMore && page.firstSeq !== null) {
-            beforeSeq = page.firstSeq
-          } else {
-            break
-          }
-        }
-        setOlderDocs(collected)
-        setOlderBoundary(boundary)
-      } catch {
-        // Swallow: the session stays marked; the live window still renders,
-        // and the manual control remains for anything the pull missed.
-      }
-    })()
-  }, [current, docsStream, hasMoreDocs, pullDocsHistory])
+    const ctl = new AbortController()
+    void fetchDocEvents(current, ctl.signal).then(
+      (folded) => {
+        setOlderDocs(folded.docs)
+        setOlderBoundary(folded.boundary)
+      },
+      () => {
+        // Swallow: the live-window fold still renders; the session stays
+        // marked until it leaves the list.
+      },
+    )
+    return () => { ctl.abort() }
+  }, [current, docsStream, hasMoreDocs, fetchDocEvents])
 
   return (
     <>

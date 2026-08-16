@@ -57,9 +57,6 @@ async function routeFetch<T>(path: string, body: unknown, signal: AbortSignal): 
   return await response.json() as T
 }
 
-/** One raw-history page request: the same 50-message bound the runtime's own window paging uses. */
-const DOCS_PAGE_MESSAGES = 50
-
 /** Required services: the slot registry plus the session service the injected face reads. */
 export const inject = ['slots', 'sessions']
 
@@ -93,35 +90,15 @@ export function apply(ctx: ClientContext): void {
       gitStatusFor: (dir, signal): Promise<GitStatusFile[]> => routeFetch<{ files: GitStatusFile[] }>('/git/status', { dir }, signal).then(value => value.files),
       readInjectedDocs: (sessionId: SessionId): ContextDoc[] => readInjectedDocs(ctx, sessionId),
       compactionBoundary: (sessionId: SessionId): number | null => compactionBoundary(ctx, sessionId),
-      pullDocsHistory: async (sessionId, beforeSeq) => {
-        // Structural slice of the connection's history RPC (the package
-        // carries no api-remotes client dependency); failures answer an empty
-        // page so the caller's cap ends the pull.
-        const connection = ctx.get('connection') as {
-          api?: {
-            sessions: {
-              history(request: {
-                sessionId: SessionId
-                beforeSeq?: number
-                maxMessages?: number
-              }): Promise<{
-                result:
-                  | { ok: true; value: { events: readonly { event: FoldedDocEvent }[]; hasMore: boolean } }
-                  | { ok: false }
-              }>
-            }
-          }
-        } | undefined
-        if (connection?.api === undefined) return { docs: [], boundary: -1, hasMore: false, firstSeq: null }
-        const { result } = await connection.api.sessions.history({
-          sessionId,
-          ...beforeSeq === undefined ? {} : { beforeSeq },
-          maxMessages: DOCS_PAGE_MESSAGES,
-        })
-        if (!result.ok) return { docs: [], boundary: -1, hasMore: false, firstSeq: null }
-        const events = result.value.events.map(entry => entry.event)
-        const folded = foldDocEvents(events)
-        return { docs: folded.docs, boundary: folded.boundary, hasMore: result.value.hasMore, firstSeq: events[0]?.seq ?? null }
+      fetchDocEvents: async (sessionId, signal) => {
+        try {
+          const value = await routeFetch<{ events: FoldedDocEvent[] }>('/dir/injected-docs', { sessionId }, signal)
+          return foldDocEvents(value.events)
+        } catch {
+          // Fail soft: the live-window fold still renders; the complete
+          // history simply waits for the next session activation.
+          return { docs: [], boundary: -1 }
+        }
       },
       hasMoreDocs: (sessionId: SessionId): boolean => hasMoreDocs(ctx, sessionId),
       loadOlderDocs: (sessionId: SessionId): Promise<void> => loadOlderDocs(ctx, sessionId),

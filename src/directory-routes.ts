@@ -266,6 +266,17 @@ export default class DirectoryRoutes {
     }), 'directory-routes: /dir/read-image')
     ctx.effect(() => ctx.webServer.register({
       kind: 'exact',
+      path: '/dir/injected-docs',
+      handler: async (req, res) => {
+        const signal = requestSignal(res)
+        await serve(res, async () => {
+          const body = readDocEventsBody(await readJsonBody(req))
+          return { events: await injectedDocEvents(ctx, body.sessionId, signal) }
+        })
+      },
+    }), 'directory-routes: /dir/injected-docs')
+    ctx.effect(() => ctx.webServer.register({
+      kind: 'exact',
       path: '/dir/open-path',
       handler: async (req, res) => {
         const signal = requestSignal(res)
