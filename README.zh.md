@@ -2,11 +2,13 @@
 
 [English](README.md) | 中文
 
+> **⚠️ 警告：本包无法在官方 dsh 发布版上显示面板。** 官方发布的 DeepSeek Harness 不包含面板渲染所需的 web 槽位系统，任何安装步骤都改变不了这一点。只可安装在 [fork](https://github.com/Happy2Git/deepseek-harness) 上。详见[要求](#%EF%B8%8F-要求)。
+
 单包形态的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件：为 Web 界面新增右侧上下文文件面板——带 git 状态徽章的目录浏览、实时重投影的注入上下文文档与压缩历史流水、带边框的只读 Git 提交图与工作区状态、面板文件拖入对话（支持图片的模型直接收图），以及会话日志下载动作。
 
 一个包 = 一个 bundle = 一行 loader 条目：host 半把本地 Git 后端（`/git/*`）、插件自有目录路由（`/dir/*`）和 `/export` 命令作为子插件挂载；浏览器半把面板注册进 `shell.overlay`，把下载动作注册进面板头部工具区。
 
-## 要求
+## ⚠️ 要求
 
 面板通过 web 槽位系统渲染，而 DeepSeek Harness 最近一次 npm 发布早于槽位系统，不包含它。在官方发布的 dsh 上，本包无法显示面板，任何安装步骤都改变不了这一点；典型症状是每一步安装检查都通过，界面上却没有面板。
 

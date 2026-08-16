@@ -2,11 +2,13 @@
 
 English | [中文](README.zh.md)
 
+> **⚠️ Warning: this package cannot show its panel on the official dsh release.** The published DeepSeek Harness release does not include the web slot system the panel renders through, and no install step changes that. Install only on the [fork](https://github.com/Happy2Git/deepseek-harness). See [Requirements](#%EF%B8%8F-requirements).
+
 A single-package [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin adding a right-side context-and-files panel to the Web GUI: directory browsing with git status badges, live injected-context documents with a compaction history stream, a framed read-only git commit graph with working-tree status, panel-file drag into the conversation (image intake for vision models), and a session-log download action.
 
 The package is one bundle, one loader row: the host half mounts the local git backend (`/git/*`), the plugin-owned directory routes (`/dir/*`), and the `/export` command as child plugins; the browser half registers the panel into `shell.overlay` and the download action into the panel's header utilities.
 
-## Requirements
+## ⚠️ Requirements
 
 The panel renders through the web slot system, which the last published npm release of DeepSeek Harness does not include. On the official dsh release the package cannot show a panel, and no install step changes that: the symptom is an install that succeeds in every check while the GUI shows no panel.
 
