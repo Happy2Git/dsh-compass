@@ -697,7 +697,8 @@
 
 /* Centered diff preview: the colored unified-diff line list plus the
  * truncation note. Every line is one div (never soft-wrapped) inside the
- * shared monospace column; roles tint through the --dsw-* state tokens. */
+ * shared monospace column; roles tint the TEXT through the --dsw-* state
+ * tokens, never the background — full-row fills hurt long-diff reading. */
 .diffText {
   margin: 0;
   font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
@@ -727,12 +728,10 @@
 
 .diffLineAdd {
   color: var(--dsw-alias-state-success-primary);
-  background: var(--dsw-alias-state-success-secondary);
 }
 
 .diffLineDel {
   color: var(--dsw-alias-state-error-primary);
-  background: var(--dsw-alias-state-error-secondary);
 }
 
 .diffLineContext {
