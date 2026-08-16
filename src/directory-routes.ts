@@ -201,6 +201,101 @@ function sniffImageMediaType(data: Uint8Array): (typeof IMAGE_MEDIA_TYPES)[numbe
   return undefined
 }
 
+/** One raw wire event the injected-doc extractor reads (structural; no session-package dependency). */
+interface WireSessionEvent {
+  seq: number
+  time: number
+  type: string
+  surfaceOp?: { op: string } | undefined
+  data?: {
+    source?: { kind?: string } | undefined
+    content?: readonly { type: string; text?: string }[] | undefined
+  }
+}
+
+/** Validate one injected-docs-request body into its session id. */
+function readDocEventsBody(body: unknown): { sessionId: string } {
+  if (typeof body !== 'object' || body === null) throw new RouteError(400, 'missing sessionId')
+  const sessionId = (body as { sessionId?: unknown }).sessionId
+  if (typeof sessionId !== 'string' || sessionId === '') throw new RouteError(400, 'missing sessionId')
+  return { sessionId }
+}
+
+/** Bounded revision-keyed memo of one session's filtered doc events. */
+const docEventCache = new Map<string, { revision: unknown; events: WireSessionEvent[] }>()
+const DOC_EVENT_CACHE_MAX = 8
+
+/** Filter one event log down to the injected-document source events (text blocks only). */
+function filterDocEvents(events: readonly WireSessionEvent[]): WireSessionEvent[] {
+  const docs: WireSessionEvent[] = []
+  for (const event of events) {
+    if (event.type !== 'user/message') continue
+    if (event.data?.source === undefined || event.data.source.kind === 'user') continue
+    docs.push({
+      seq: event.seq,
+      time: event.time,
+      type: event.type,
+      ...event.surfaceOp === undefined ? {} : { surfaceOp: event.surfaceOp },
+      data: {
+        source: event.data.source,
+        content: (event.data.content ?? []).filter(block => block.type === 'text'),
+      },
+    })
+  }
+  return docs
+}
+
+/**
+ * The persistence store's filtered doc events for one session, memoized by
+ * the store's opaque revision token. The live session's unflushed events
+ * merge per request, so the memo never serves stale tails.
+ */
+async function persistedDocEvents(
+  ctx: Context,
+  sessionId: string,
+  signal: AbortSignal,
+): Promise<{ events: WireSessionEvent[]; revision: unknown }> {
+  const persistence = ctx.get('sessionPersistence') as {
+    inspect(id: string, signal?: AbortSignal): Promise<{ events: readonly WireSessionEvent[] }>
+    listSnapshots(signal?: AbortSignal): Promise<{ header: { id: string }; revision: unknown }[]>
+  } | undefined
+  if (persistence === undefined) return { events: [], revision: undefined }
+  const snapshots = await persistence.listSnapshots(signal)
+  const revision = snapshots.find(snapshot => snapshot.header.id === sessionId)?.revision
+  const cached = docEventCache.get(sessionId)
+  if (cached !== undefined && cached.revision === revision) return cached
+  const events = (await persistence.inspect(sessionId, signal)).events
+  const entry = { revision, events: filterDocEvents(events) }
+  docEventCache.set(sessionId, entry)
+  if (docEventCache.size > DOC_EVENT_CACHE_MAX) {
+    const oldest = docEventCache.keys().next().value
+    if (oldest !== undefined) docEventCache.delete(oldest)
+  }
+  return entry
+}
+
+/**
+ * Collect one session's injected-document source events from the complete
+ * durable log: every `user/message` whose source is not the human, plus their
+ * surface op for compaction-checkpoint detection. Serves the live session's
+ * unflushed events on top of the persistence store's (memoized) log, deduped
+ * by seq. Text blocks only: image and tool payloads never cross this wire.
+ */
+async function injectedDocEvents(ctx: Context, sessionId: string, signal: AbortSignal): Promise<WireSessionEvent[]> {
+  const { events: persisted } = await persistedDocEvents(ctx, sessionId, signal)
+  const sessions = ctx.get('sessions') as {
+    get(id: string): { events: readonly WireSessionEvent[] } | undefined
+  } | undefined
+  const live = sessions?.get(sessionId)
+  if (live === undefined) return persisted
+  const bySeq = new Map<number, WireSessionEvent>()
+  for (const event of persisted) bySeq.set(event.seq, event)
+  for (const event of live.events) bySeq.set(event.seq, event)
+  // Filter once more after the merge: the live window's raw events carry
+  // human messages too, and only the doc-relevant events may cross the wire.
+  return filterDocEvents([...bySeq.values()].sort((left, right) => left.seq - right.seq))
+}
+
 /** The route-registration plugin body. */
 export default class DirectoryRoutes {
   static inject = ['webServer']
