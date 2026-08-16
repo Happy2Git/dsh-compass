@@ -4,9 +4,18 @@
 # half rides the same package through its dsh.client declaration.
 #
 # The fork ships this panel in-box (the ui-context-files / git / directory-routes
-# / session-log-download rows in the dsh-web-app bundle). Compositions that
-# install this package must disable those four rows by id in their own
-# cordis.patch.yml — see README.
+# / session-log-download rows in the dsh-web-app bundle). Upstream master's
+# dsh-web-app bundle ships session-log-download (@deepseek-ai/dsh-session-log-export,
+# the `/export` command plus the shared download dialog), whose `/export`
+# registration collides with this package's own — disable it here so plugin
+# installs on upstream master builds need no manual patch. Layers apply in
+# dsh.profile.bundles order and a plugin bundle lands after the stock bundles,
+# so this disable wins; on builds whose web-app bundle lacks the row (npm
+# releases predating it) the disable is a warned no-op. The fork's other three
+# in-box rows (ui-context-files, git, directory-routes) do not exist upstream
+# and remain the fork user's own disables — see README.
+- id: session-log-download
+  disabled: true
 - insert:
     - id: context-files-panel
       name: 'dsh-compass'

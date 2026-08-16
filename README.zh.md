@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-> **⚠️ 警告：本包无法在官方 dsh 发布版上显示面板。** 官方发布的 DeepSeek Harness 不包含面板渲染所需的 web 槽位系统，任何安装步骤都改变不了这一点。只可安装在 [fork](https://github.com/Happy2Git/deepseek-harness) 上。详见[要求](#%EF%B8%8F-要求)。
+> **⚠️ 警告：npm 发布版 dsh 无法显示本面板——官方源码构建可以。** DeepSeek Harness 最近一次 npm 发布早于面板渲染所需的 web 槽位系统。上游 `master`（≥ `47f9438`，已验证）已包含槽位系统、模块加载器与 `shell.overlay` 挂载点，可直接承载本包——从官方仓库源码构建后安装即可。[fork](https://github.com/Happy2Git/deepseek-harness) 则内置同一面板。详见[要求](#%EF%B8%8F-要求)。
 
 单包形态的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件：为 Web 界面新增右侧上下文文件面板——带 git 状态徽章的目录浏览、实时重投影的注入上下文文档与压缩历史流水、带边框的只读 Git 提交图与工作区状态、面板文件拖入对话（支持图片的模型直接收图），以及会话日志下载动作。
 
@@ -10,15 +10,19 @@
 
 ## ⚠️ 要求
 
-面板通过 web 槽位系统渲染，而 DeepSeek Harness 最近一次 npm 发布早于槽位系统，不包含它。在官方发布的 dsh 上，本包无法显示面板，任何安装步骤都改变不了这一点；典型症状是每一步安装检查都通过，界面上却没有面板。
+面板通过 web 槽位系统渲染（`window.__ModuleLoader__`、冻结模块表、`ui-layout` 的 `shell.overlay` 挂载点）。宿主分三档，2026-08 实测：
 
-请使用 [fork](https://github.com/Happy2Git/deepseek-harness)（`pnpm dsh web`）。fork 默认的 `web` profile 已内置同一面板，在 fork 上安装本包是为了运行独立产物。先确认挂载面：
+- **上游 `master` 源码构建——可用。** `https://github.com/deepseek-ai/deepseek-harness` 的 `47f9438` 已包含槽位系统、`dsh.client` 清单处理和 `shell.overlay` 渲染点；本包的外部模块全部可解析，面板正常挂载。按下面的步骤从源码构建官方仓库即可——npm 发布版还落后于这些提交。
+- **[fork](https://github.com/Happy2Git/deepseek-harness)——可用，面板内置。** fork 默认 `web` profile 自带同一面板，在 fork 上安装本包是为了运行独立产物。
+- **npm 发布版——不可用。** 最近一次 npm 发布早于槽位系统；「每一步安装检查都通过、界面上却没有面板」就是它的预期症状。等下一次包含槽位系统的上游发布。
+
+先确认宿主的挂载面：
 
 ```sh
 dsh --profile web --dump-config
 ```
 
-输出里必须包含 `ui-context-files`、`git`、`directory-routes`、`session-log-download` 四行。没有这些行，组合里就没有面板的挂载位置，到此为止。
+fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、`session-log-download` 四行。上游源码构建上，面板不依赖任何上游行——改查服务页面的启动清单里有 `modules` 行（`packages/client/modules`，即 `__ModuleLoader__` 的提供方）。
 
 ## 截图
 
@@ -39,7 +43,7 @@ dsh --profile web --dump-config
 
 ![文件夹标签，目录优先](screenshots/04-files-tab-dirs-first.png?v=3)
 
-**面板文件拖入** — 文件行把绝对路径拖进对话；图片文件在支持视觉的模型上直接附加内容，其他模型收到路径说明：
+**面板文件拖入** — 文件行把绝对路径拖进对话。fork 上由 composer 原生接收（支持视觉的模型对图片直接附加内容）；其他宿主——包括尚不认识该拖拽 MIME 的上游源码构建——由包内自带的整窗接收器接住拖放，把路径说明追加进草稿，模型仍可用工具处理该路径。接收器对已认领拖拽的 composer 主动让位，两种宿主都只有一条接收链路：
 
 ![面板文件拖入](screenshots/05-drag-image.png?v=3)
 
@@ -59,13 +63,23 @@ dsh --profile web --dump-config
 
 ## 安装
 
-1. 先通过上面的要求检查，再固定 commit 安装：
+**上游源码构建**先构建官方仓库、用它的 CLI（以 `master` 的 `47f9438` 验证）：
 
-   ```sh
-   dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
-   ```
+```sh
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+cd deepseek-harness
+git checkout 47f9438
+pnpm install && pnpm run build
+pnpm dsh --profile web --port 3080     # 官方 web profile 启动 Web 界面
+```
 
-2. Git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发环境依赖）。pnpm ≥10 会拦截构建脚本：首次 `add` 失败后，把 pnpm 打印的确切键复制进 profile 的 `pnpm-workspace.yaml`：
+之后，任何通过上面要求检查的宿主，固定 commit 安装本包：
+
+```sh
+dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
+```
+
+Git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发环境依赖）。pnpm ≥10 会拦截构建脚本：首次 `add` 失败后，把 pnpm 打印的确切键复制进 profile 的 `pnpm-workspace.yaml`：
 
    ```yaml
    allowBuilds:
@@ -74,12 +88,14 @@ dsh --profile web --dump-config
 
    然后重跑同一条 `add`。不要手动进 `node_modules` 补构建：失败的 `add` 不会登记层，手动构建同样不会登记。这条允许意味着「安装时执行本包代码」，请固定 commit，防止后续推送悄悄改变执行内容。
 
-3. 核对安装结果：
+核对安装结果：
 
    - `~/.dsh/profiles/web/package.json` 的 `dependencies` 和 `dsh.profile.bundles` 里都有 `dsh-compass`（bundles 缺条目说明 `add` 没有成功，补跑 `dsh plugin --profile web install` 登记）；
    - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` 里有 `index.js` 和 `client.js`（由 `prepare` 构建）。
 
-4. fork 默认的 `web` profile 已内置同一面板。改用本包时，在 profile 自己的 `cordis.patch.yml` 里禁用内置四行：
+**上游源码构建**到此即可：本包自己的 bundle patch 会禁用官方的 `session-log-download` 行（它的 `/export` 命令与本包的撞名；本包自带该命令与自己的下载按钮和对话框，ZIP 端点本身属于 ApiProxy，不受影响）。
+
+**fork** 默认的 `web` profile 已内置同一面板。改用本包时，在 profile 自己的 `cordis.patch.yml` 里禁用内置面板行（`session-log-download` 已由本包的 patch 处理）：
 
    ```yaml
    - id: ui-context-files
@@ -88,11 +104,9 @@ dsh --profile web --dump-config
      disabled: true
    - id: directory-routes
      disabled: true
-   - id: session-log-download
-     disabled: true
    ```
 
-5. 重启 `dsh web`，刷新页面后核对：`curl http://127.0.0.1:<端口>/dir/list` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
+重启 `dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
 
 本地目录安装不需要任何构建授权：
 
@@ -106,12 +120,13 @@ dsh plugin --profile web add ./dsh-compass
 dsh plugin --profile web remove dsh-compass
 ```
 
-它执行 `pnpm remove` 并把本包从层列表摘除；profile 无法启动时这条命令仍然可用。如果做过第 4 步，删掉那四行 `disabled: true` 恢复内置面板。
+它执行 `pnpm remove` 并把本包从层列表摘除；profile 无法启动时这条命令仍然可用。fork 上删掉上面加的三行 `disabled: true` 恢复内置面板；上游构建上被本包 patch 禁用的 `session-log-download` 行随卸载自动恢复。
 
 ## 面板仍然不出现时
 
-- **官方 dsh。** 预期行为，不是安装失败。官方发布没有槽位系统，面板无法渲染；按上文卸载，等上游发布槽位系统后再装。
+- **官方 npm 发布版 dsh。** 预期行为，不是安装失败。发布版没有槽位系统，面板无法渲染；按上文卸载，要么按安装一节从上游 `master` 源码构建，要么等下一次上游发布。
 - **启动报 `ERR_MODULE_NOT_FOUND`。** `prepare` 构建被拦截或未执行；补 `allowBuilds` 后重跑 `add`。
+- **启动报 `command "export" is already registered`。** 组合里还在挂官方 `session-log-download` 行，而本包的 patch 没排在它后面生效。确认 `dsh.profile.bundles` 里有 `dsh-compass`（插件 `add` 会排在官方 bundle 之后），且 profile 的 `node_modules/dsh-compass/cordis.patch.yml` 里有对 `session-log-download` 的禁用。
 - **host 路由有响应，界面没有面板。** 宿主构建缺槽位系统；回到要求检查。
 
 ## 构建

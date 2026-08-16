@@ -12,10 +12,17 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls ui-layout's SlotMap declaration (the shell.overlay seat)
 // and its package-identity edge into this compilation.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: the command/executed event shape the export observer listens to.
+import type {} from '@deepseek-ai/dsh-client-ui-commands/client'
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { DirectoryListing, DirectoryRead } from '../directory-types.ts'
 import type { GitFileDiff, GitStatusFile, GitWorkspaceStatus } from '../git-seam.ts'
 import { PanelRoot } from './PanelRoot.tsx'
+import { installPanelDropIntake } from './drop-intake.ts'
+import { SessionLogDownloadController } from './export/controller.ts'
+import type { SessionLogDownloadDialogInjected } from './export/Dialog.tsx'
+import { SessionLogDownloadHeaderAction } from './export/HeaderAction.tsx'
+import { en, NS, zh } from './export/locales.ts'
 import { docsStreamFor } from './docs-stream.ts'
 import { compactionBoundary, foldDocEvents, hasMoreDocs, loadOlderDocs, readInjectedDocs } from './read-context.ts'
 import { createPanelStore } from './store.ts'
@@ -57,8 +64,8 @@ async function routeFetch<T>(path: string, body: unknown, signal: AbortSignal): 
   return await response.json() as T
 }
 
-/** Required services: the slot registry plus the session service the injected face reads. */
-export const inject = ['slots', 'sessions']
+/** Required services: the slot registry, the session service the injected face reads, and the export dialog's locale. */
+export const inject = ['slots', 'sessions', 'locale']
 
 /**
  * Client plugin body: register the panel entry into the layout-declared
@@ -68,6 +75,10 @@ export const inject = ['slots', 'sessions']
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
+  // Shells without a composer-side panel-path intake (upstream) get the
+  // window-level drop receiver here; fork builds' own intake claims the drag
+  // first and this install stays passive (see drop-intake.ts).
+  ctx.effect(() => installPanelDropIntake(), 'dsh-compass: panel-path drop intake')
   // One source per plugin (never per inject call): the renderer caches the
   // bound hook per source object, so the identity must outlive renders.
   const docsStream = docsStreamFor(ctx)
@@ -107,4 +118,27 @@ export function apply(ctx: ClientContext): void {
       hooks: { docsStream },
     }),
   }, PanelRoot))
+
+  // Session-log export, browser half (absorbed from the fork's
+  // session-log-export client): the download controller, its locale
+  // namespace, the `/export` command observation that triggers the download,
+  // and the header-utilities action + shared dialog. The ZIP endpoint itself
+  // (/api/session.export) belongs to ApiProxy, which every web composition
+  // mounts — only the command/dialog row was plugin territory.
+  const exportController = new SessionLogDownloadController()
+  ctx.effect(() => async () => { await exportController.dispose() }, 'dsh-compass: session export download lifecycle')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-compass: session export locale')
+  ctx.on('command/executed', (sessionId, commandName, result) => {
+    if (commandName === 'export' && result.kind === 'success') void exportController.download(sessionId)
+  })
+  ctx.slots.inject('panel.header.utilities', () => ctx.slots.register({
+    name: 'panel.header.utilities',
+    id: 'compass-session-export',
+    locale: NS,
+    inject: (): SessionLogDownloadDialogInjected => ({
+      hooks: { sessionLogDownload: exportController.store },
+      request: (sessionId) => exportController.download(sessionId),
+      dismiss: (sessionId) => exportController.dismiss(sessionId),
+    }),
+  }, SessionLogDownloadHeaderAction))
 }

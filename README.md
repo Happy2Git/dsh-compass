@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-> **⚠️ Warning: this package cannot show its panel on the official dsh release.** The published DeepSeek Harness release does not include the web slot system the panel renders through, and no install step changes that. Install only on the [fork](https://github.com/Happy2Git/deepseek-harness). See [Requirements](#%EF%B8%8F-requirements).
+> **⚠️ Warning: the published npm release of dsh cannot show this panel — a source build can.** The last npm release of DeepSeek Harness predates the web slot system the panel renders through. Upstream `master` (≥ `47f9438`, verified) ships the slot system, module loader, and `shell.overlay` seat, and hosts this package directly — build the official repo from source and install there. The [fork](https://github.com/Happy2Git/deepseek-harness) keeps the same panel in-box. See [Requirements](#%EF%B8%8F-requirements).
 
 A single-package [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin adding a right-side context-and-files panel to the Web GUI: directory browsing with git status badges, live injected-context documents with a compaction history stream, a framed read-only git commit graph with working-tree status, panel-file drag into the conversation (image intake for vision models), and a session-log download action.
 
@@ -10,15 +10,19 @@ The package is one bundle, one loader row: the host half mounts the local git ba
 
 ## ⚠️ Requirements
 
-The panel renders through the web slot system, which the last published npm release of DeepSeek Harness does not include. On the official dsh release the package cannot show a panel, and no install step changes that: the symptom is an install that succeeds in every check while the GUI shows no panel.
+The panel renders through the web slot system (`window.__ModuleLoader__`, the frozen module table, and the `shell.overlay` seat in `ui-layout`). Hosts divide into three tiers, verified 2026-08:
 
-Use the [fork](https://github.com/Happy2Git/deepseek-harness) (`pnpm dsh web`), whose default `web` profile already ships the same panel in-box; installing this package there is for running the standalone artifact instead. Confirm the mounting surface first:
+- **Upstream `master`, source build — works.** `https://github.com/deepseek-ai/deepseek-harness` at `47f9438` contains the slot system, the `dsh.client` manifest handling, and the `shell.overlay` render site; this package's externals all resolve and the panel mounts. Build the repo from source (below) — the npm release is older than these commits.
+- **The [fork](https://github.com/Happy2Git/deepseek-harness) — works, panel in-box.** Its default `web` profile ships the same panel; installing this package there is for running the standalone artifact.
+- **Published npm release — does not work.** The last npm release predates the slot system; an install that passes every check while the GUI shows no panel is the expected symptom. Wait for the next upstream release that ships it.
+
+Confirm the mounting surface on your host:
 
 ```sh
 dsh --profile web --dump-config
 ```
 
-The output must contain the `ui-context-files`, `git`, `directory-routes`, and `session-log-download` rows. Without them the composition has nowhere to mount the panel; stop here.
+On the fork the output must contain the `ui-context-files`, `git`, `directory-routes`, and `session-log-download` rows. On an upstream source build the panel needs no upstream rows of its own — check instead that the served page's boot manifest carries the `modules` row (`packages/client/modules`, the `__ModuleLoader__` provider).
 
 ## Screenshots
 
@@ -39,7 +43,7 @@ The output must contain the `ui-context-files`, `git`, `directory-routes`, and `
 
 ![Files tab, directories first](screenshots/04-files-tab-dirs-first.png?v=3)
 
-**Panel-file drag** — file rows drag their absolute path into the conversation; image files attach their content directly on vision models, other models receive the path sentence:
+**Panel-file drag** — file rows drag their absolute path into the conversation. On fork builds the composer's native intake consumes the drag (image files attach their content directly on vision models). On every other host — including upstream source builds, whose composer does not know the drag MIME yet — the package's own window-level intake takes the drop and appends the path sentence to the draft, which the agent can still act on with its tools. The intake yields to a composer that claims the drag, so both hosts keep exactly one intake:
 
 ![Panel file drag](screenshots/05-drag-image.png?v=3)
 
@@ -59,13 +63,23 @@ The package carries every capability surface it needs, so it installs on any dsh
 
 ## Install
 
-1. Pass the requirements check above, then install from this repository with a pinned commit:
+On an **upstream source build**, first build the official repo and use its CLI (verified with `master` at `47f9438`):
 
-   ```sh
-   dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
-   ```
+```sh
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+cd deepseek-harness
+git checkout 47f9438
+pnpm install && pnpm run build
+pnpm dsh --profile web --port 3080     # the stock web profile boots the web GUI
+```
 
-2. Git installs build from source through the package's `prepare` script (transpile-only, no dev context). pnpm ≥10 blocks the build until allowed; on the first failed `add`, copy the exact key pnpm printed into the profile's `pnpm-workspace.yaml`:
+Then, with any host that passed the requirements check, install from this repository with a pinned commit:
+
+```sh
+dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
+```
+
+Git installs build from source through the package's `prepare` script (transpile-only, no dev context). pnpm ≥10 blocks the build until allowed; on the first failed `add`, copy the exact key pnpm printed into the profile's `pnpm-workspace.yaml`:
 
    ```yaml
    allowBuilds:
@@ -74,12 +88,14 @@ The package carries every capability surface it needs, so it installs on any dsh
 
    Then re-run the same `add`. Do not build inside `node_modules` by hand: a failed `add` never registers the layer, and a hand build does not register it either. That allowance is permission to execute this package's code at install time — pin a commit so a later push cannot silently change what runs.
 
-3. Verify the install:
+Verify the install:
 
    - `~/.dsh/profiles/web/package.json` lists `dsh-compass` in both `dependencies` and `dsh.profile.bundles` (a missing bundles entry means the `add` did not succeed; re-run `dsh plugin --profile web install` to register it);
    - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` contains `index.js` and `client.js` (built by `prepare`).
 
-4. The fork's default `web` profile ships the same panel in-box. To use this package instead, disable the in-box rows in the profile's own `cordis.patch.yml`:
+On an **upstream source build** nothing else is needed: the package's own bundle patch disables the stock `session-log-download` row (its `/export` command would collide with this package's, and this package ships the command plus its own download button and dialog; the ZIP endpoint itself belongs to ApiProxy and stays).
+
+The **fork's** default `web` profile ships the same panel in-box. To use this package instead, disable the in-box panel rows in the profile's own `cordis.patch.yml` (`session-log-download` is already handled by the package's own patch):
 
    ```yaml
    - id: ui-context-files
@@ -88,11 +104,9 @@ The package carries every capability surface it needs, so it installs on any dsh
      disabled: true
    - id: directory-routes
      disabled: true
-   - id: session-log-download
-     disabled: true
    ```
 
-5. Restart `dsh web`, refresh the page, and check: `curl http://127.0.0.1:<port>/dir/list` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
+Restart `dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
 
 Local checkouts install without any build permission:
 
@@ -106,12 +120,13 @@ dsh plugin --profile web add ./dsh-compass
 dsh plugin --profile web remove dsh-compass
 ```
 
-This runs `pnpm remove` and drops the package from the layer list; it works even when the profile fails to boot. If you disabled the four in-box rows in step 4, delete those rows to restore the in-box panel.
+This runs `pnpm remove` and drops the package from the layer list; it works even when the profile fails to boot. On the fork, delete the three `disabled: true` rows added above to restore the in-box panel; on an upstream build the package-patched `session-log-download` row restores itself.
 
 ## When the panel still does not appear
 
-- **Official dsh release.** Expected, not an install failure. The published release has no slot system, so the panel cannot render; uninstall as above and wait for an upstream release that ships the slot system.
+- **Official npm release of dsh.** Expected, not an install failure. The published release has no slot system, so the panel cannot render; uninstall as above, and either build upstream `master` from source (see Install) or wait for the next upstream release.
 - **`ERR_MODULE_NOT_FOUND` at boot.** The `prepare` build was blocked or skipped; apply the `allowBuilds` step and re-run the `add`.
+- **Boot fails with `command "export" is already registered`.** The composition still mounts the stock `session-log-download` row and the plugin's patch did not land after it. Ensure `dsh-compass` sits in `dsh.profile.bundles` (plugin `add` appends it after the stock bundles) and that the profile's `node_modules/dsh-compass/cordis.patch.yml` contains the `session-log-download` disable.
 - **Host routes answer but no panel in the GUI.** The host build lacks the slot system; re-check the requirements.
 
 ## Building
@@ -125,7 +140,7 @@ The package is published and installable; here is where it goes next. Star or wa
 - **English UI locale.** The panel copy is Chinese today; add an English dictionary behind the locale service.
 - **Exact-path git output.** The git backend parses `--name-status`/`--numstat` with default quoting; switch to `-z` NUL-terminated output so paths with quotes or tabs display exactly.
 - **Rename-aware file list.** Show a rename as one row instead of a delete + add pair.
-- **Main-track install.** Once an upstream release ships the slot system, the published dsh can host the panel; see Requirements for the constraint until then.
+- **Drag-to-attach on upstream.** Upstream's composer does not know the panel drag MIME, so the package's own intake degrades to the path sentence; an upstream ui-conversation PR adopting the MIME would restore image attach on source builds.
 - **dsh-terminal.** The terminal TUI is packaged the same way and stays local until its feature set grows.
 
 ## License
