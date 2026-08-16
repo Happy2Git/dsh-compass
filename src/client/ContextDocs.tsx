@@ -98,11 +98,13 @@ export function ContextDocs(props: ContextDocsProps): ReactNode {
   const searching = needle !== ''
   const matched = props.docs.filter(doc => matches(doc, needle))
   const matchedNewest = [...matched].reverse()
-  // The live window answers "what does the model see now" (newest first); the
-  // history is a timeline (oldest first).
+  // Both sections read newest first: the live window answers "what does the
+  // model see now", and the history stream is the same timeline read
+  // backwards.
   const active = matched.filter(doc => doc.active)
   const activeNewest = [...active].reverse()
   const history = matched.filter(doc => !doc.active)
+  const historyNewest = [...history].reverse()
 
   return (
     <div className={css.contextLayout}>
@@ -140,7 +142,7 @@ export function ContextDocs(props: ContextDocsProps): ReactNode {
         <>
           <DocSection title="当前有效" docs={activeNewest} emptyNote="当前没有仍在窗口内的注入文档。" onOpenDoc={props.onOpenDoc} />
           <div className={css.docSectionDivider} />
-          <DocSection title="历史流水" docs={history} emptyNote="还没有被压缩的历史注入文档。" onOpenDoc={props.onOpenDoc} fill />
+          <DocSection title="历史流水" docs={historyNewest} emptyNote="还没有被压缩的历史注入文档。" onOpenDoc={props.onOpenDoc} fill />
           {props.hasMore && (
             <button
               type="button"
