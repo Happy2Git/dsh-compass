@@ -2,27 +2,31 @@
 
 English | [中文](README.zh.md)
 
-A single-package [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin adding a right-side context-and-files panel to the Web GUI: directory browsing, injected-context documents, a read-only git commit graph, and a session-log download action.
+A single-package [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin adding a right-side context-and-files panel to the Web GUI: directory browsing with git status badges, live injected-context documents with a compaction history stream, a framed read-only git commit graph with working-tree status, panel-file drag into the conversation (image intake for vision models), and a session-log download action.
 
 The package is one bundle, one loader row: the host half mounts the local git backend (`/git/*`), the plugin-owned directory routes (`/dir/*`), and the `/export` command as child plugins; the browser half registers the panel into `shell.overlay` and the download action into the panel's header utilities.
 
 ## Screenshots
 
-**Files tab** — lazy directory tree with directories-first order, basename filter, per-row open/copy actions:
+**Files tab** — lazy directory tree with directories-first order, basename filter, git working-tree status badges, and per-row open/copy actions:
 
 ![Files tab](screenshots/01-files-tab.png)
 
-**Git tab** — read-only commit graph with lanes, ref badges, and lazy commit expansion:
+**Git tab** — framed working-tree block and commit tree: branch position, uncommitted files, lanes, ref badges, lazy commit expansion, and a refresh control:
 
 ![Git tab](screenshots/02-git-tab.png)
 
-**Context tab** — the session's injected-context documents with "load older" paging:
+**Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and pages one history batch when a checkpoint lands:
 
 ![Context tab](screenshots/03-context-tab.png)
 
 **Directories first** — symlinked directories sort with the directories group:
 
 ![Files tab, directories first](screenshots/04-files-tab-dirs-first.png)
+
+**Panel-file drag** — file rows drag their absolute path into the conversation; image files attach their content directly on vision models, other models receive the path sentence:
+
+![Panel file drag](screenshots/05-drag-image.png)
 
 ## Main-track compatibility
 
