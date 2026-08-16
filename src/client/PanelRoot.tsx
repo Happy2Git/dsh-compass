@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent, ReactNode } from 'react'
 import type { InjectFace, PropsRenderSlots, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { DirectoryRead } from '../directory-types.ts'
 import { IconPanelLeftOutline16, MarkdownText, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import clsx from 'clsx'
@@ -37,6 +38,13 @@ const PANEL_MAX_WIDTH = 480
 function clampWidth(width: number): number {
   return Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, width))
 }
+
+/**
+ * Complete-result bound of the history auto-walk: at most this many older
+ * batches load automatically per session (50 messages each, so 1,000
+ * messages); anything deeper stays behind the manual paging control.
+ */
+const MAX_AUTO_PAGES = 20
 
 /** Centered pop-out: the selected file's full preview over the conversation. */
 function CenterPreview({ path, readText, onClose }: {
@@ -296,6 +304,37 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
       },
     ).then(() => { setLoadingOlder(false) })
   }, [current, docsStream, compactionBoundary, hasMoreDocs, loadOlderDocs, readInjectedDocs, loadingOlder])
+
+  // Auto-walk the session history so both context sections hold the complete
+  // log, not just the loaded tail: page older batches until the window is
+  // exhausted or the cap, once per session (the window only grows; live
+  // events arrive through the stream). The manual control stays for anything
+  // past the cap. The runtime's loadOlder guards concurrent calls, so the
+  // compaction page above and this walk cannot fetch the same batch twice.
+  const walkedSessions = useRef(new Set<SessionId>())
+  useEffect(() => {
+    if (current === undefined || walkedSessions.current.has(current)) return
+    walkedSessions.current.add(current)
+    setLoadingOlder(true)
+    // The controller also serves as the cancellation flag: the cleanup aborts
+    // it, and every post-await step re-reads the mutable signal instead of a
+    // captured boolean the walk cannot observe reliably.
+    const walk = new AbortController()
+    void (async () => {
+      try {
+        for (let pages = 0; pages < MAX_AUTO_PAGES && !walk.signal.aborted && hasMoreDocs(current); pages++) {
+          await loadOlderDocs(current)
+        }
+        if (!walk.signal.aborted) setDocs(readInjectedDocs(current))
+      } catch {
+        // Swallow the failure: the manual control remains, and the session
+        // stays marked so stream advances do not retry it in a loop.
+      } finally {
+        if (!walk.signal.aborted) setLoadingOlder(false)
+      }
+    })()
+    return () => { walk.abort() }
+  }, [current, hasMoreDocs, loadOlderDocs, readInjectedDocs])
 
   return (
     <>

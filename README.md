@@ -17,7 +17,7 @@ The package is one bundle, one loader row: the host half mounts the local git ba
 ![Git tab](screenshots/02-git-tab.png)
 ![Working-tree diff preview](screenshots/06-workspace-diff.png)
 
-**Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and pages one history batch when a checkpoint lands:
+**Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and auto-walks the session history on activation (up to 1,000 messages), so both sections hold the complete log:
 
 ![Context tab](screenshots/03-context-tab.png)
 
