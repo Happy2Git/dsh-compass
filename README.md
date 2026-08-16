@@ -37,6 +37,12 @@ The package carries every capability surface it needs, so it installs on any dsh
 - the git seam and its local backend ship inside the package (`ctx.subprocess` + `ctx.webServer` come from the base composition);
 - the conversation reserve uses the package's own `--dsh-compass-width` variable and a CSS `:has()` rule against the shell's stable `[data-shell-overlay]` hook — no fork CSS required (the fork's in-box rule reads a different variable, so no composition double-pads).
 
+## Security and performance
+
+**Security.** Every host route this package registers is loopback-only and refuses to load on a non-loopback webserver host. Request bodies are capped at 64 KiB and must be `application/json`; every path must be fully qualified, so a wire value never resolves against the host working directory. Reads fail closed: oversized images refuse whole (`file-too-large`, plus the composed attachment per-file limit as 413), image formats come from magic bytes rather than filename extensions, and a git call outside a repository answers `not-a-repository`. The panel is read-only: git commands never write, dropped images are never copied into the workspace, and file content crosses the wire only through the bounded read routes.
+
+**Performance.** The context tab's document stream is signature-gated, so the panel re-projects and re-renders only when the injected documents actually change, not per stream batch. Complete history arrives through `/dir/injected-docs`, which filters the durable log server-side and sends text blocks only; on a session with 181k events this replaced roughly 120 MB of history-page JSON per activation with a single KB-scale response. Every listing and read is bounded (`maxEntries`, `maxTextBytes`, `maxImageBytes`, git `maxOutputBytes` and `maxCommits`), every fetch rides an `AbortSignal` that cancels with the caller, and the per-session fetch markers prune with the session list, so nothing accumulates per departed session.
+
 ## Install
 
 Install from this repository with a pinned commit:
