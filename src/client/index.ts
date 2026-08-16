@@ -85,6 +85,7 @@ export function apply(ctx: ClientContext): void {
       gitShowCommit: (cwd, hash, signal) => routeFetch('/git/show-commit', { cwd, hash }, signal),
       workspaceStatus: (cwd, signal): Promise<GitWorkspaceStatus> => routeFetch<GitWorkspaceStatus>('/git/workspace', { cwd }, signal),
       showFileDiff: (cwd, hash, path, signal): Promise<GitFileDiff> => routeFetch<GitFileDiff>('/git/show-diff', { cwd, hash, path }, signal),
+      showWorkspaceDiff: (cwd, path, signal): Promise<GitFileDiff> => routeFetch<GitFileDiff>('/git/workspace-diff', { cwd, path }, signal),
       gitStatusFor: (dir, signal): Promise<GitStatusFile[]> => routeFetch<{ files: GitStatusFile[] }>('/git/status', { dir }, signal).then(value => value.files),
       readInjectedDocs: (sessionId: SessionId): ContextDoc[] => readInjectedDocs(ctx, sessionId),
       compactionBoundary: (sessionId: SessionId): number | null => compactionBoundary(ctx, sessionId),

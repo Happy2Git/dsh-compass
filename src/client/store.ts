@@ -22,8 +22,8 @@ type PanelState = {
   centerFile: string | null
   /** Seq of the context document opened in the centered pop-out; null hides it. */
   centerDocSeq: number | null
-  /** Commit hash + file path of the diff opened in the centered pop-out; null hides it. */
-  centerDiff: { hash: string; path: string } | null
+  /** Diff opened in the centered pop-out: commit hash (null = working-tree diff) + file path; null hides it. */
+  centerDiff: { hash: string | null; path: string } | null
   /** Whether the panel is collapsed to its rail (mirrors the left sidebar). */
   collapsed: boolean
   /** Expanded width in px, adjustable from the panel's left edge. */
@@ -40,7 +40,7 @@ type PanelActions = {
   toggleDir: (draft: PanelState, path: string) => void
   openCenter: (draft: PanelState, path: string) => void
   openDocCenter: (draft: PanelState, seq: number) => void
-  openDiffCenter: (draft: PanelState, hash: string, path: string) => void
+  openDiffCenter: (draft: PanelState, hash: string | null, path: string) => void
   closeCenter: (draft: PanelState) => void
   toggleCollapsed: (draft: PanelState) => void
   setWidth: (draft: PanelState, width: number) => void

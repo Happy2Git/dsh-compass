@@ -14,6 +14,7 @@ import type { DirectoryRead } from '../directory-types.ts'
 import { IconPanelLeftOutline16, MarkdownText, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import clsx from 'clsx'
 import { ContextDocs } from './ContextDocs.tsx'
+import { DiffText } from './DiffText.tsx'
 import { FileContent } from './render-file.tsx'
 import { FileTree } from './FileTree.tsx'
 import { GitGraph } from './GitGraph.tsx'
@@ -77,12 +78,13 @@ function CenterPreview({ path, readText, onClose }: {
   )
 }
 
-/** Centered pop-out: one file's diff within one commit, over the conversation. */
-function CenterDiffPreview({ cwd, hash, path, showFileDiff, onClose }: {
+/** Centered pop-out: one file's diff (within a commit, or the working-tree delta), over the conversation. */
+function CenterDiffPreview({ cwd, hash, path, showFileDiff, showWorkspaceDiff, onClose }: {
   cwd: string
-  hash: string
+  hash: string | null
   path: string
   showFileDiff: InjectedFace['showFileDiff']
+  showWorkspaceDiff: InjectedFace['showWorkspaceDiff']
   onClose: () => void
 }): ReactNode {
   const [diff, setDiff] = useState<string | null>(null)
@@ -94,7 +96,10 @@ function CenterDiffPreview({ cwd, hash, path, showFileDiff, onClose }: {
     setDiff(null)
     setTruncated(false)
     setError(null)
-    void showFileDiff(cwd, hash, path, new AbortController().signal).then(
+    const read = hash === null
+      ? showWorkspaceDiff(cwd, path, new AbortController().signal)
+      : showFileDiff(cwd, hash, path, new AbortController().signal)
+    void read.then(
       (value) => {
         if (cancelled) return
         setDiff(value.diff)
@@ -105,7 +110,7 @@ function CenterDiffPreview({ cwd, hash, path, showFileDiff, onClose }: {
       },
     )
     return () => { cancelled = true }
-  }, [cwd, hash, path, showFileDiff])
+  }, [cwd, hash, path, showFileDiff, showWorkspaceDiff])
 
   return (
     <Modal
@@ -123,7 +128,7 @@ function CenterDiffPreview({ cwd, hash, path, showFileDiff, onClose }: {
             : (
               <>
                 {truncated && <p className={css.diffTruncated}>diff 过长,仅显示部分。</p>}
-                <pre className={css.diffText}>{diff}</pre>
+                <DiffText text={diff} />
               </>
             )}
       </div>
@@ -160,7 +165,7 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // onward would trip the unbound-method lint and hide the ownership.
   const {
     actions, renderSlot, listDirectory, gitStatusFor, openPath, readText, gitGraph, gitShowCommit,
-    workspaceStatus, showFileDiff, readInjectedDocs, compactionBoundary, hasMoreDocs, loadOlderDocs, useDocsStream,
+    workspaceStatus, showFileDiff, showWorkspaceDiff, readInjectedDocs, compactionBoundary, hasMoreDocs, loadOlderDocs, useDocsStream,
   } = props
   const sessions = props.useSessions(s => s)
   const state = props.useStore(s => s)
@@ -311,6 +316,7 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
           hash={state.centerDiff.hash}
           path={state.centerDiff.path}
           showFileDiff={showFileDiff}
+          showWorkspaceDiff={showWorkspaceDiff}
           onClose={actions.closeCenter}
         />
       )}
@@ -424,6 +430,7 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
                   gitShowCommit={gitShowCommit}
                   workspaceStatus={workspaceStatus}
                   onOpenDiff={actions.openDiffCenter}
+                  onOpenWorkspaceDiff={(path) => { actions.openDiffCenter(null, path) }}
                 />
               )}
             </div>

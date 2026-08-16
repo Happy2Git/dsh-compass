@@ -695,15 +695,48 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-/* Centered diff preview: monospace unified diff plus the truncation note. */
+/* Centered diff preview: the colored unified-diff line list plus the
+ * truncation note. Every line is one div (never soft-wrapped) inside the
+ * shared monospace column; roles tint through the --dsw-* state tokens. */
 .diffText {
   margin: 0;
   font-family: var(--dsw-alias-font-mono, ui-monospace, monospace);
   font-size: 12px;
   line-height: 18px;
-  color: var(--dsw-alias-label-primary);
-  white-space: pre;
   overflow: auto;
+}
+
+.diffText > div {
+  white-space: pre;
+  min-width: max-content;
+  padding: 0 8px;
+}
+
+.diffLineMeta {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.diffLineHeader {
+  color: var(--dsw-alias-label-primary);
+  font-weight: 600;
+}
+
+.diffLineHunk {
+  color: var(--dsw-alias-brand-primary);
+}
+
+.diffLineAdd {
+  color: var(--dsw-alias-state-success-primary);
+  background: var(--dsw-alias-state-success-secondary);
+}
+
+.diffLineDel {
+  color: var(--dsw-alias-state-error-primary);
+  background: var(--dsw-alias-state-error-secondary);
+}
+
+.diffLineContext {
+  color: var(--dsw-alias-label-secondary);
 }
 
 .diffTruncated {

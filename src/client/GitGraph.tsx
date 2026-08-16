@@ -182,11 +182,13 @@ function CommitDetail({
   )
 }
 
-/** The working-tree block: branch position and the uncommitted file list. */
-function WorkspaceBlock({ status, loading, error }: {
+/** The working-tree block: branch position and the uncommitted file list.
+ * Each file row opens the working-tree diff in the centered pop-out. */
+function WorkspaceBlock({ status, loading, error, onOpenDiff }: {
   status: GitWorkspaceStatus | null
   loading: boolean
   error: string | null
+  onOpenDiff: (path: string) => void
 }): ReactNode {
   if (loading) return <div className={css.workspaceBlock}><span className={css.workspaceNote}>读取工作区…</span></div>
   if (error !== null) return <div className={css.workspaceBlock}><span className={css.workspaceError}>工作区读取失败:{error}</span></div>
@@ -210,12 +212,14 @@ function WorkspaceBlock({ status, loading, error }: {
           <ul className={css.workspaceList}>
             {status.files.map(file => (
               <li key={file.path} className={css.workspaceRow}>
-                <span className={clsx(css.detailBadge, css[`detailStatus_${file.status}`])}>{statusLabel(file.status)}</span>
-                <span className={css.workspacePath} title={file.path}>{file.path}</span>
-                <span className={css.detailCount}>
-                  {file.additions > 0 && <span className={css.detailAdd}>+{file.additions}</span>}
-                  {file.deletions > 0 && <span className={css.detailDel}>−{file.deletions}</span>}
-                </span>
+                <button type="button" className={css.workspaceFileButton} onClick={() => { onOpenDiff(file.path) }}>
+                  <span className={clsx(css.detailBadge, css[`detailStatus_${file.status}`])}>{statusLabel(file.status)}</span>
+                  <span className={css.workspacePath} title={file.path}>{file.path}</span>
+                  <span className={css.detailCount}>
+                    {file.additions > 0 && <span className={css.detailAdd}>+{file.additions}</span>}
+                    {file.deletions > 0 && <span className={css.detailDel}>−{file.deletions}</span>}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
@@ -234,10 +238,12 @@ export interface GitGraphProps {
   workspaceStatus: InjectedFace['workspaceStatus']
   /** Open one file's diff in the centered pop-out. */
   onOpenDiff: (hash: string, path: string) => void
+  /** Open one workspace file's working-tree diff in the centered pop-out. */
+  onOpenWorkspaceDiff: (path: string) => void
 }
 
 /** Render the commit-graph tab. */
-export function GitGraph({ cwd, gitGraph, gitShowCommit, workspaceStatus, onOpenDiff }: GitGraphProps): ReactNode {
+export function GitGraph({ cwd, gitGraph, gitShowCommit, workspaceStatus, onOpenDiff, onOpenWorkspaceDiff }: GitGraphProps): ReactNode {
   const [entries, setEntries] = useState<GitGraphEntry[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -368,7 +374,7 @@ export function GitGraph({ cwd, gitGraph, gitShowCommit, workspaceStatus, onOpen
 
   return (
     <div className={css.gitLayout}>
-      <WorkspaceBlock status={workspace} loading={workspaceLoading} error={workspaceError} />
+      <WorkspaceBlock status={workspace} loading={workspaceLoading} error={workspaceError} onOpenDiff={onOpenWorkspaceDiff} />
       <div className={css.treeBlock}>
         <div className={css.treeHeader}>
           <span className={css.treeTitle}>Git 树</span>

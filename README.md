@@ -12,9 +12,10 @@ The package is one bundle, one loader row: the host half mounts the local git ba
 
 ![Files tab](screenshots/01-files-tab.png)
 
-**Git tab** — framed working-tree block and commit tree: branch position, uncommitted files, lanes, ref badges, lazy commit expansion, and a refresh control:
+**Git tab** — framed working-tree block and commit tree: branch position, uncommitted files, lanes, ref badges, lazy commit expansion, and a refresh control. Workspace rows and commit files open their diff in the centered pop-out, colored by line role:
 
 ![Git tab](screenshots/02-git-tab.png)
+![Working-tree diff preview](screenshots/06-workspace-diff.png)
 
 **Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and pages one history batch when a checkpoint lands:
 

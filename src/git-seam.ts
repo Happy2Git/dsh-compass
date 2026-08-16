@@ -196,6 +196,20 @@ export abstract class Git extends Service {
   abstract showFileDiff(cwd: string, hash: string, path: string, signal?: AbortSignal): Promise<GitFileDiff>
 
   /**
+   * One file's working-tree diff against HEAD (staged or unstaged). An
+   * untracked file has no HEAD version: its diff is the whole file as
+   * additions, produced through a `--no-index` comparison against an empty
+   * file. The panel opens this from the workspace block's rows.
+   * @param cwd - absolute path of the repository to read.
+   * @param path - repo-relative path of the changed file.
+   * @param signal - caller lifetime; abort stops the git scan and rejects with the abort reason.
+   * @returns the bounded unified diff (cut diffs carry `truncated`).
+   * @throws {GitError} `git-unavailable` when the git binary cannot run, `not-a-repository`
+   * when `cwd` is not inside a git repository.
+   */
+  abstract showWorkspaceDiff(cwd: string, path: string, signal?: AbortSignal): Promise<GitFileDiff>
+
+  /**
    * The working-tree status of one directory's direct children, for the
    * directory browser's per-file badges. A path outside any repository
    * reports an empty list rather than failing.

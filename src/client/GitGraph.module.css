@@ -384,6 +384,28 @@
   min-height: 22px;
 }
 
+/* Clickable workspace row: the whole row opens the file's working-tree diff. */
+.workspaceFileButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workspaceFileButton:hover .workspacePath {
+  color: var(--dsw-alias-label-primary);
+  text-decoration: underline;
+}
+
 .workspacePath {
   flex: 1;
   min-width: 0;

@@ -48,6 +48,8 @@ export interface InjectedFace {
   workspaceStatus: (cwd: string, signal: AbortSignal) => Promise<GitWorkspaceStatus>
   /** One file's unified diff within one commit. */
   showFileDiff: (cwd: string, hash: string, path: string, signal: AbortSignal) => Promise<GitFileDiff>
+  /** One workspace file's working-tree diff against HEAD (staged or unstaged). */
+  showWorkspaceDiff: (cwd: string, path: string, signal: AbortSignal) => Promise<GitFileDiff>
   /** One directory's per-child working-tree statuses for the tree badges. */
   gitStatusFor: (dir: string, signal: AbortSignal) => Promise<GitStatusFile[]>
   /** Project the injected-context documents of one session from its loaded log window. */

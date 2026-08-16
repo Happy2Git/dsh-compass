@@ -12,6 +12,9 @@
 
 import { isAbsolute as isAbsolutePosix } from 'node:path/posix'
 import { isAbsolute as isAbsoluteWin32 } from 'node:path/win32'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: resolves `ctx.subprocess` to the subprocess seam's service.
@@ -168,6 +171,19 @@ function readStatusBody(body: unknown): { dir: string } {
     throw new RouteError(400, 'dir must be an absolute path')
   }
   return { dir: record.dir }
+}
+
+/** Validate one workspace-diff-request body into `cwd` + `path`. */
+function readWorkspaceDiffBody(body: unknown): { cwd: string; path: string } {
+  if (typeof body !== 'object' || body === null) throw new RouteError(400, 'missing cwd or path')
+  const record = body as { cwd?: unknown; path?: unknown }
+  if (typeof record.cwd !== 'string' || record.cwd === '' || !fullyQualified(record.cwd)) {
+    throw new RouteError(400, 'cwd must be an absolute path')
+  }
+  if (typeof record.path !== 'string' || record.path === '' || record.path.length > 1024) {
+    throw new RouteError(400, 'missing path')
+  }
+  return { cwd: record.cwd, path: record.path }
 }
 
 /** Validate one show-diff-request body into `cwd` + `hash` + `path`. */
@@ -327,6 +343,20 @@ export default class LocalGit extends Git {
     }), 'git-local: /git/show-diff')
     this.ctx.effect(() => this.ctx.webServer.register({
       kind: 'exact',
+      path: '/git/workspace-diff',
+      handler: async (req, res) => {
+        const signal = requestSignal(res)
+        try {
+          const body = readWorkspaceDiffBody(await readJsonBody(req))
+          const diff = await this.showWorkspaceDiff(body.cwd, body.path, signal)
+          writeJson(res, 200, diff)
+        } catch (error: unknown) {
+          writeJson(res, statusOf(error), { error: { message: messageOf(error) } })
+        }
+      },
+    }), 'git-local: /git/workspace-diff')
+    this.ctx.effect(() => this.ctx.webServer.register({
+      kind: 'exact',
       path: '/git/status',
       handler: async (req, res) => {
         const signal = requestSignal(res)
@@ -347,7 +377,12 @@ export default class LocalGit extends Git {
    * {@link GitError}. Callers decide whether a lossy (truncated) stream is a
    * failure or a bounded result.
    */
-  private async runGit(cwd: string, args: readonly string[], signal: AbortSignal | undefined): Promise<{ text: string; lossy: boolean }> {
+  private async runGit(
+    cwd: string,
+    args: readonly string[],
+    signal: AbortSignal | undefined,
+    allowExitOne = false,
+  ): Promise<{ text: string; lossy: boolean }> {
     const handle = this.ctx.subprocess.spawn({
       argv: ['git', '-C', cwd, ...args],
       cwd,
@@ -371,6 +406,14 @@ export default class LocalGit extends Git {
     const stderr = handle.collected.stderr?.readFrom(0).text ?? ''
     if (outcome.exitCode !== 0) {
       signal?.throwIfAborted()
+      // `git diff --no-index` exits 1 when the two inputs differ: the diff on
+      // stdout is the result, not a failure.
+      if (allowExitOne && outcome.exitCode === 1) {
+        const diffOut = handle.collected.stdout
+        if (diffOut === undefined) return { text: '', lossy: false }
+        const read = diffOut.readFrom(0)
+        return { text: read.text, lossy: read.lossy }
+      }
       throw classifyFailure(stderr)
     }
     const stdout = handle.collected.stdout
@@ -573,5 +616,38 @@ export default class LocalGit extends Git {
     // A diff is presentational: a cut stream renders with the truncated flag
     // instead of failing the whole view.
     return { path, diff: read.text, truncated: read.lossy }
+  }
+
+  async showWorkspaceDiff(cwd: string, path: string, signal?: AbortSignal): Promise<GitFileDiff> {
+    // Tracked changes (staged or not) compare against HEAD — the total delta
+    // a human previews. The ls-files probe decides which command applies; its
+    // only business failure (untracked) selects the no-index branch.
+    const tracked = await this.runGitStrict(cwd, ['ls-files', '--error-unmatch', '--', path], signal)
+      .then(() => true)
+      .catch((error: unknown) => {
+        // Only the pathspec miss (an untracked file) selects the no-index
+        // branch; a non-repository keeps failing closed.
+        if (error instanceof GitError && error.code !== 'not-a-repository') return false
+        throw error
+      })
+    if (tracked) {
+      const read = await this.runGit(cwd, [
+        'diff', 'HEAD', '--no-ext-diff', '--unified=3', '--', path,
+      ], signal)
+      return { path, diff: read.text, truncated: read.lossy }
+    }
+    // Untracked: diff the file against an empty temp file with --no-index
+    // (exit 1 = the inputs differ, the diff on stdout is the result).
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-empty-'))
+    const empty = join(dir, 'empty')
+    try {
+      await writeFile(empty, '')
+      const read = await this.runGit(cwd, [
+        'diff', '--no-index', '--no-ext-diff', '--unified=3', '--', empty, path,
+      ], signal, true)
+      return { path, diff: read.text, truncated: read.lossy }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   }
 }
