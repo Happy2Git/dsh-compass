@@ -245,10 +245,23 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // rows did not change (the docs are durable log events; only their set and
   // active flags move).
   // Out-of-band history fetch state: the privately fetched older documents and
-  // their latest compaction boundary, merged into the docs projection below.
-  const fetchedSessions = useRef(new Set<SessionId>())
+  // their latest compaction boundary, cached PER SESSION, merged into the
+  // docs projection below. The current-session id ref lets an in-flight fetch
+  // land for a departed session without surfacing its documents.
+  const fetchedFolds = useRef(new Map<SessionId, { docs: ContextDoc[]; boundary: number }>())
+  const currentIdRef = useRef<SessionId | undefined>(undefined)
   const [olderDocs, setOlderDocs] = useState<ContextDoc[]>([])
   const [olderBoundary, setOlderBoundary] = useState(-1)
+
+  // Load the cached fold (or clear) whenever the current session changes, so
+  // switching back to an already-fetched session is instant and no session
+  // ever sees another session's documents.
+  useEffect(() => {
+    currentIdRef.current = current
+    const cached = current === undefined ? undefined : fetchedFolds.current.get(current)
+    setOlderDocs(cached?.docs ?? [])
+    setOlderBoundary(cached?.boundary ?? -1)
+  }, [current])
 
   // The docsStream value moves only when the projected documents change (the
   // observable folds its own signature per batch), so this re-fold + merge
@@ -289,33 +302,34 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // anchors. Once per session; live events still arrive through the stream
   // and merge above. Failures answer an empty fold.
   useEffect(() => {
-    if (current === undefined || fetchedSessions.current.has(current)) return
+    if (current === undefined || fetchedFolds.current.has(current)) return
     // Wait for the session's own open: `hasMoreDocs` stays false until the
     // runtime's first history page lands, so the route's full-log read never
     // races the cold resume's persistence load (the stream bump after the
     // open re-runs this effect).
     if (!hasMoreDocs(current)) return
-    // Bound the marker set by the live session list: sessions that no longer
+    // Bound the cache by the live session list: sessions that no longer
     // exist leave no growing residue behind (the audit note's pattern).
     const liveIds = new Set(sessions.ids)
-    for (const id of fetchedSessions.current) {
-      if (!liveIds.has(id)) fetchedSessions.current.delete(id)
+    for (const id of fetchedFolds.current.keys()) {
+      if (!liveIds.has(id)) fetchedFolds.current.delete(id)
     }
-    fetchedSessions.current.add(current)
-    setOlderDocs([])
-    setOlderBoundary(-1)
-    const ctl = new AbortController()
-    void fetchDocEvents(current, ctl.signal).then(
+    // One self-owned request per session (no abort cleanup): a stream bump
+    // mid-flight must not kill the fetch, and completing it just warms the
+    // cache for a later switch back.
+    void fetchDocEvents(current, new AbortController().signal).then(
       (folded) => {
-        setOlderDocs(folded.docs)
-        setOlderBoundary(folded.boundary)
+        fetchedFolds.current.set(current, folded)
+        if (currentIdRef.current === current) {
+          setOlderDocs(folded.docs)
+          setOlderBoundary(folded.boundary)
+        }
       },
       () => {
         // Swallow: the live-window fold still renders; the session stays
-        // marked until it leaves the list.
+        // unfetched until it leaves and re-enters the list.
       },
     )
-    return () => { ctl.abort() }
   }, [current, docsStream, hasMoreDocs, fetchDocEvents])
 
   return (
