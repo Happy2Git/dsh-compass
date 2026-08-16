@@ -6,6 +6,18 @@ A single-package [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harn
 
 The package is one bundle, one loader row: the host half mounts the local git backend (`/git/*`), the plugin-owned directory routes (`/dir/*`), and the `/export` command as child plugins; the browser half registers the panel into `shell.overlay` and the download action into the panel's header utilities.
 
+## Requirements
+
+The panel renders through the web slot system, which the last published npm release of DeepSeek Harness does not include. On the official dsh release the package cannot show a panel, and no install step changes that: the symptom is an install that succeeds in every check while the GUI shows no panel.
+
+Use the [fork](https://github.com/Happy2Git/deepseek-harness) (`pnpm dsh web`), whose default `web` profile already ships the same panel in-box; installing this package there is for running the standalone artifact instead. Confirm the mounting surface first:
+
+```sh
+dsh --profile web --dump-config
+```
+
+The output must contain the `ui-context-files`, `git`, `directory-routes`, and `session-log-download` rows. Without them the composition has nowhere to mount the panel; stop here.
+
 ## Screenshots
 
 **Files tab** — lazy directory tree with directories-first order, basename filter, git working-tree status badges, and per-row open/copy actions:
@@ -45,39 +57,60 @@ The package carries every capability surface it needs, so it installs on any dsh
 
 ## Install
 
-Install from this repository with a pinned commit:
+1. Pass the requirements check above, then install from this repository with a pinned commit:
 
-```sh
-dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
-```
+   ```sh
+   dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
+   ```
 
-Git installs build from source through the package's `prepare` script (transpile-only, no dev context). pnpm ≥10 blocks the build until allowed; on the first failed `add`, copy the exact key pnpm printed into the profile's `pnpm-workspace.yaml`:
+2. Git installs build from source through the package's `prepare` script (transpile-only, no dev context). pnpm ≥10 blocks the build until allowed; on the first failed `add`, copy the exact key pnpm printed into the profile's `pnpm-workspace.yaml`:
 
-```yaml
-allowBuilds:
-  dsh-compass: true
-```
+   ```yaml
+   allowBuilds:
+     dsh-compass: true
+   ```
 
-and re-run the `add`. That allowance is permission to execute this package's code at install time — pin a commit so a later push cannot silently change what runs.
+   Then re-run the same `add`. Do not build inside `node_modules` by hand: a failed `add` never registers the layer, and a hand build does not register it either. That allowance is permission to execute this package's code at install time — pin a commit so a later push cannot silently change what runs.
 
-The fork's default `web` profile ships the same panel in-box. To use this package instead, disable the in-box rows in the profile's own `cordis.patch.yml`:
+3. Verify the install:
 
-```yaml
-- id: ui-context-files
-  disabled: true
-- id: git
-  disabled: true
-- id: directory-routes
-  disabled: true
-- id: session-log-download
-  disabled: true
-```
+   - `~/.dsh/profiles/web/package.json` lists `dsh-compass` in both `dependencies` and `dsh.profile.bundles` (a missing bundles entry means the `add` did not succeed; re-run `dsh plugin --profile web install` to register it);
+   - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` contains `index.js` and `client.js` (built by `prepare`).
+
+4. The fork's default `web` profile ships the same panel in-box. To use this package instead, disable the in-box rows in the profile's own `cordis.patch.yml`:
+
+   ```yaml
+   - id: ui-context-files
+     disabled: true
+   - id: git
+     disabled: true
+   - id: directory-routes
+     disabled: true
+   - id: session-log-download
+     disabled: true
+   ```
+
+5. Restart `dsh web`, refresh the page, and check: `curl http://127.0.0.1:<port>/dir/list` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
 
 Local checkouts install without any build permission:
 
 ```sh
 dsh plugin --profile web add ./dsh-compass
 ```
+
+## Uninstall
+
+```sh
+dsh plugin --profile web remove dsh-compass
+```
+
+This runs `pnpm remove` and drops the package from the layer list; it works even when the profile fails to boot. If you disabled the four in-box rows in step 4, delete those rows to restore the in-box panel.
+
+## When the panel still does not appear
+
+- **Official dsh release.** Expected, not an install failure. The published release has no slot system, so the panel cannot render; uninstall as above and wait for an upstream release that ships the slot system.
+- **`ERR_MODULE_NOT_FOUND` at boot.** The `prepare` build was blocked or skipped; apply the `allowBuilds` step and re-run the `add`.
+- **Host routes answer but no panel in the GUI.** The host build lacks the slot system; re-check the requirements.
 
 ## Building
 
@@ -90,7 +123,7 @@ The package is published and installable; here is where it goes next. Star or wa
 - **English UI locale.** The panel copy is Chinese today; add an English dictionary behind the locale service.
 - **Exact-path git output.** The git backend parses `--name-status`/`--numstat` with default quoting; switch to `-z` NUL-terminated output so paths with quotes or tabs display exactly.
 - **Rename-aware file list.** Show a rename as one row instead of a delete + add pair.
-- **Main-track install.** Once an upstream release ships the slot system in its web composition, the package installs onto the published dsh directly (today it needs a slot-system build or the fork).
+- **Main-track install.** Once an upstream release ships the slot system, the published dsh can host the panel; see Requirements for the constraint until then.
 - **dsh-terminal.** The terminal TUI is packaged the same way and stays local until its feature set grows.
 
 ## License
