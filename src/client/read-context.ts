@@ -5,7 +5,9 @@
  * folded by the runtime into `context` chat nodes. This reader is a plain
  * projection over the public snapshot; it owns no state.
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import {
+  contextForm, contextProvenance, type ClientContext,
+} from '@deepseek-ai/dsh-client-runtime/client'
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { ContextDoc } from './types.ts'
@@ -17,6 +19,90 @@ function contentText(content: readonly ContentBlock[]): string {
     if (block.type === 'text') text += block.text
   }
   return text
+}
+
+/** The logged-event slice the raw-history fold reads (wire events arrive with this envelope). */
+export interface FoldedDocEvent {
+  seq: number
+  time: number
+  surfaceOp?: { op: string } | undefined
+  data?: {
+    source?: unknown
+    content?: readonly ContentBlock[]
+  }
+}
+
+/**
+ * Whether one logged event is a compaction checkpoint's replacement message:
+ * a replace surface op whose source carries the compact plugin's marker. The
+ * same durable-format check the runtime fold uses to place checkpoint nodes.
+ */
+function isCompactionCheckpoint(event: FoldedDocEvent): boolean {
+  if (event.surfaceOp === undefined || event.surfaceOp.op !== 'replace') return false
+  const source = event.data?.source as {
+    kind?: unknown
+    plugin?: unknown
+    compactionId?: unknown
+  } | undefined
+  return source?.kind === 'plugin' && source.plugin === 'compact' && typeof source.compactionId === 'string'
+}
+
+/**
+ * Fold one raw history page's events into injected-context documents plus the
+ * page's latest compaction boundary. The same provenance/form readers the
+ * live fold uses project every durable field, so both sources agree; `active`
+ * here is page-local and re-derived at merge time against the global boundary.
+ * @param events - the page's raw events (oldest first).
+ * @returns the page's documents (non-user `user/message` events with text)
+ * and its latest compaction checkpoint seq (-1 when none).
+ */
+export function foldDocEvents(events: readonly FoldedDocEvent[]): { docs: ContextDoc[]; boundary: number } {
+  let boundary = -1
+  for (const event of events) {
+    if (isCompactionCheckpoint(event) && event.seq > boundary) boundary = event.seq
+  }
+  const docs: ContextDoc[] = []
+  for (const event of events) {
+    const source = event.data?.source
+    if (source === undefined) continue
+    if ((source as { kind?: unknown }).kind === 'user') continue
+    const text = contentText(event.data?.content ?? []).trim()
+    if (text === '') continue
+    const provenance = contextProvenance(source)
+    docs.push({
+      seq: event.seq,
+      time: event.time,
+      role: provenance.role,
+      label: provenance.label,
+      form: contextForm(source),
+      text,
+      active: event.seq > boundary,
+    })
+  }
+  return { docs, boundary }
+}
+
+/**
+ * Merge the out-of-band older documents with the live-window fold: dedup by
+ * seq (the live fold wins — it is the authoritative projection of the same
+ * durable event), sort oldest first, and re-derive `active` against the
+ * global compaction boundary (the latest checkpoint either source saw).
+ * @param older - the privately pulled older documents.
+ * @param live - the live-window fold's documents.
+ * @param boundary - the global latest compaction checkpoint seq.
+ * @returns the complete merged document list.
+ */
+export function mergeDocs(
+  older: readonly ContextDoc[],
+  live: readonly ContextDoc[],
+  boundary: number,
+): ContextDoc[] {
+  const bySeq = new Map<number, ContextDoc>()
+  for (const doc of older) bySeq.set(doc.seq, doc)
+  for (const doc of live) bySeq.set(doc.seq, doc)
+  return [...bySeq.values()]
+    .sort((left, right) => left.seq - right.seq)
+    .map(doc => ({ ...doc, active: doc.seq > boundary }))
 }
 
 /**

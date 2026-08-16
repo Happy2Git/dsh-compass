@@ -16,6 +16,7 @@ import { IconPanelLeftOutline16, MarkdownText, Modal } from '@deepseek-ai/dsh-cl
 import clsx from 'clsx'
 import { ContextDocs } from './ContextDocs.tsx'
 import { DiffText } from './DiffText.tsx'
+import { mergeDocs } from './read-context.ts'
 import { FileContent } from './render-file.tsx'
 import { FileTree } from './FileTree.tsx'
 import { GitGraph } from './GitGraph.tsx'
@@ -173,7 +174,8 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // onward would trip the unbound-method lint and hide the ownership.
   const {
     actions, renderSlot, listDirectory, gitStatusFor, openPath, readText, gitGraph, gitShowCommit,
-    workspaceStatus, showFileDiff, showWorkspaceDiff, readInjectedDocs, compactionBoundary, hasMoreDocs, loadOlderDocs, useDocsStream,
+    workspaceStatus, showFileDiff, showWorkspaceDiff, readInjectedDocs, compactionBoundary, pullDocsHistory,
+    hasMoreDocs, loadOlderDocs, useDocsStream,
   } = props
   const sessions = props.useSessions(s => s)
   const state = props.useStore(s => s)
@@ -244,6 +246,11 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
     setResizing(false)
   }, [actions])
 
+  // Out-of-band history pull state: the privately pulled older documents and
+  // their latest compaction boundary, merged into the docs projection below.
+  const pulledSessions = useRef(new Set<SessionId>())
+  const [olderDocs, setOlderDocs] = useState<ContextDoc[]>([])
+  const [olderBoundary, setOlderBoundary] = useState(-1)
   // Projected injected documents: re-read when the session changes, the
   // manual refresh bumps, or the session stream advances (docsStream). A
   // signature guard keeps stream bumps from re-rendering when the projected
@@ -256,12 +263,16 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
       setDocs([])
       return
     }
-    const next = readInjectedDocs(current)
+    // The live-window fold merges with the out-of-band older pages; `active`
+    // re-derives against the latest checkpoint either source saw.
+    const live = readInjectedDocs(current)
+    const boundary = Math.max(olderBoundary, compactionBoundary(current) ?? -1)
+    const next = mergeDocs(olderDocs, live, boundary)
     const signature = `${current}:${next.map(doc => `${doc.seq}:${doc.active ? '1' : '0'}`).join(',')}`
     if (signature === docsSignature.current) return
     docsSignature.current = signature
     setDocs(next)
-  }, [current, docsRev, docsStream, readInjectedDocs])
+  }, [current, docsRev, docsStream, readInjectedDocs, compactionBoundary, olderDocs, olderBoundary])
 
   const handleLoadOlder = (): void => {
     if (current === undefined || loadingOlder) return
@@ -278,63 +289,44 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
     ).then(() => { setLoadingOlder(false) })
   }
 
-  // The history stream fills from documents a compaction checkpoint shadows,
-  // and those lie just BEFORE the checkpoint — outside the loaded tail
-  // window. When a checkpoint first appears in the projection, page one older
-  // batch back so the shadowed documents enter the window (and the stream)
-  // without a manual click. One page per checkpoint: the manual control owns
-  // anything deeper.
-  const pagedBoundary = useRef<number | null>(null)
+  // Out-of-band history pull: the panel owns its older pages, fetched through
+  // the connection's history RPC and folded privately, so the shared
+  // conversation window stays untouched — the chat keeps its own "load
+  // earlier" control and scroll anchors. Once per session, capped; live
+  // events still arrive through the stream and merge above. Failures answer
+  // empty pages, so the cap ends the pull without an error surface.
   useEffect(() => {
-    if (current === undefined) return
-    const boundary = compactionBoundary(current)
-    if (boundary === null || boundary === pagedBoundary.current) return
-    // Mark only once the page actually goes out: a checkpoint landing while
-    // another page is in flight keeps its turn and retries on the next run.
-    if (!hasMoreDocs(current) || loadingOlder) return
-    pagedBoundary.current = boundary
-    setLoadingOlder(true)
-    void loadOlderDocs(current).then(
-      () => {
-        setDocs(readInjectedDocs(current))
-      },
-      () => {
-        // Swallow the load failure: the history stream simply waits for the
-        // next checkpoint (the manual control remains available).
-      },
-    ).then(() => { setLoadingOlder(false) })
-  }, [current, docsStream, compactionBoundary, hasMoreDocs, loadOlderDocs, readInjectedDocs, loadingOlder])
-
-  // Auto-walk the session history so both context sections hold the complete
-  // log, not just the loaded tail: page older batches until the window is
-  // exhausted or the cap, once per session (the window only grows; live
-  // events arrive through the stream). The manual control stays for anything
-  // past the cap. The runtime's loadOlder guards concurrent calls, so the
-  // compaction page above and this walk cannot fetch the same batch twice.
-  const walkedSessions = useRef(new Set<SessionId>())
-  useEffect(() => {
-    if (current === undefined || walkedSessions.current.has(current)) return
-    walkedSessions.current.add(current)
-    setLoadingOlder(true)
-    // The controller also serves as the cancellation flag: the cleanup aborts
-    // it, and every post-await step re-reads the mutable signal instead of a
-    // captured boolean the walk cannot observe reliably.
-    const walk = new AbortController()
+    if (current === undefined || pulledSessions.current.has(current)) return
+    // Wait for the session's own open: `hasMoreDocs` stays false until the
+    // runtime's first history page lands, so the pull never races the cold
+    // resume's window load (the stream bump after the open re-runs this).
+    if (!hasMoreDocs(current)) return
+    pulledSessions.current.add(current)
+    setOlderDocs([])
+    setOlderBoundary(-1)
     void (async () => {
       try {
-        for (let pages = 0; pages < MAX_AUTO_PAGES && !walk.signal.aborted && hasMoreDocs(current); pages++) {
-          await loadOlderDocs(current)
+        const collected: ContextDoc[] = []
+        let boundary = -1
+        let beforeSeq: number | undefined
+        for (let pages = 0; pages < MAX_AUTO_PAGES; pages++) {
+          const page = await pullDocsHistory(current, beforeSeq)
+          collected.push(...page.docs)
+          boundary = Math.max(boundary, page.boundary)
+          if (page.hasMore && page.firstSeq !== null) {
+            beforeSeq = page.firstSeq
+          } else {
+            break
+          }
         }
-        if (!walk.signal.aborted) setDocs(readInjectedDocs(current))
+        setOlderDocs(collected)
+        setOlderBoundary(boundary)
       } catch {
-        // Swallow the failure: the manual control remains, and the session
-        // stays marked so stream advances do not retry it in a loop.
-      } finally {
-        if (!walk.signal.aborted) setLoadingOlder(false)
+        // Swallow: the session stays marked; the live window still renders,
+        // and the manual control remains for anything the pull missed.
       }
     })()
-    return () => { walk.abort() }
-  }, [current, hasMoreDocs, loadOlderDocs, readInjectedDocs])
+  }, [current, docsStream, hasMoreDocs, pullDocsHistory])
 
   return (
     <>
