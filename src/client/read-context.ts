@@ -136,10 +136,16 @@ export function compactionBoundary(ctx: ClientContext, sessionId: SessionId): nu
 export function readInjectedDocs(ctx: ClientContext, sessionId: SessionId): ContextDoc[] {
   const binding = ctx.sessions.binding(sessionId)
   if (binding === undefined) return []
-  const snapshot = binding.session.getSnapshot()
-  const lastCompactionSeq = compactionBoundary(ctx, sessionId) ?? -1
+  // One pass over the nodes: collect the compaction boundary and the context
+  // documents together (the active flag needs the final boundary, so it is a
+  // second pass over the few documents, never over the whole node list).
+  let lastCompactionSeq = -1
   const docs: ContextDoc[] = []
-  for (const node of snapshot.chat.legacy.nodes) {
+  for (const node of binding.session.getSnapshot().chat.legacy.nodes) {
+    if (node.kind === 'compaction') {
+      if (node.seq > lastCompactionSeq) lastCompactionSeq = node.seq
+      continue
+    }
     if (node.kind !== 'context') continue
     const text = contentText(node.content).trim()
     if (text === '') continue
@@ -150,8 +156,11 @@ export function readInjectedDocs(ctx: ClientContext, sessionId: SessionId): Cont
       label: node.provenance.label,
       form: node.form,
       text,
-      active: node.seq > lastCompactionSeq,
+      active: true,
     })
+  }
+  for (const doc of docs) {
+    doc.active = doc.seq > lastCompactionSeq
   }
   return docs
 }

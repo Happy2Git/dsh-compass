@@ -6,6 +6,7 @@
  * the runtime window back so the session-start baseline instructions
  * (AGENTS.md and friends) join the history stream.
  */
+import { useMemo } from 'react'
 import type { ReactNode } from 'react'
 import css from './Panel.module.css'
 import type { ContextDoc } from './types.ts'
@@ -96,15 +97,23 @@ export function ContextDocs(props: ContextDocsProps): ReactNode {
   }
   const needle = props.filter.trim().toLowerCase()
   const searching = needle !== ''
-  const matched = props.docs.filter(doc => matches(doc, needle))
-  const matchedNewest = [...matched].reverse()
-  // Both sections read newest first: the live window answers "what does the
-  // model see now", and the history stream is the same timeline read
-  // backwards.
-  const active = matched.filter(doc => doc.active)
-  const activeNewest = [...active].reverse()
-  const history = matched.filter(doc => !doc.active)
-  const historyNewest = [...history].reverse()
+  // The filter and the section splits re-run only when the documents or the
+  // query move: the per-document haystack builds (label + form + badge +
+  // full text, lowercased) are the expensive part, not the splits.
+  const { matchedNewest, matchedCount, activeNewest, historyNewest } = useMemo(() => {
+    const matched = props.docs.filter(doc => matches(doc, needle))
+    // Both sections read newest first: the live window answers "what does
+    // the model see now", and the history stream is the same timeline read
+    // backwards.
+    const active = matched.filter(doc => doc.active)
+    const history = matched.filter(doc => !doc.active)
+    return {
+      matchedNewest: [...matched].reverse(),
+      matchedCount: matched.length,
+      activeNewest: [...active].reverse(),
+      historyNewest: [...history].reverse(),
+    }
+  }, [props.docs, needle])
 
   return (
     <div className={css.contextLayout}>
@@ -131,9 +140,9 @@ export function ContextDocs(props: ContextDocsProps): ReactNode {
         <section className={css.docSection}>
           <header className={css.docSectionHeader}>
             <span className={css.docSectionTitle}>匹配结果</span>
-            <span className={css.docSectionCount}>{matched.length} 篇</span>
+            <span className={css.docSectionCount}>{matchedCount} 篇</span>
           </header>
-          {matched.length === 0
+          {matchedCount === 0
             ? <p className={css.docEmpty}>没有匹配的注入文档。</p>
             : <ul className={css.docList}>{matchedNewest.map(doc => <DocRow key={doc.seq} doc={doc} onOpenDoc={props.onOpenDoc} />)}</ul>}
         </section>

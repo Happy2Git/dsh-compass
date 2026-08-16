@@ -38,11 +38,23 @@ export function docsStreamFor(ctx: ClientContext): ObservableSnapshot<DocsStream
   let listUnsub: (() => void) | null = null
   const listeners = new Set<() => void>()
 
+  // The signature is a pure function of the conversation's chat nodes, and
+  // the assembler rebuilds that node list only when events fold, so an
+  // identity check absorbs every ordinary stream frame: the per-frame cost
+  // drops from two full node scans to one reference comparison.
+  let memo: { sessionId: SessionId; nodes: unknown; signature: string } | undefined
+
   /** The live fold signature for one session, or null without a binding. */
   const signatureOf = (sessionId: SessionId | undefined): string | null => {
     if (sessionId === undefined) return null
-    const docs = readInjectedDocs(ctx, sessionId)
-    return docs.map(doc => `${doc.seq}:${doc.active ? '1' : '0'}`).join(',')
+    const nodes = ctx.sessions.binding(sessionId)?.session.getSnapshot().chat.legacy.nodes
+    if (nodes === undefined) return null
+    if (memo !== undefined && memo.sessionId === sessionId && memo.nodes === nodes) return memo.signature
+    const signature = readInjectedDocs(ctx, sessionId)
+      .map(doc => `${doc.seq}:${doc.active ? '1' : '0'}`)
+      .join(',')
+    memo = { sessionId, nodes, signature }
+    return signature
   }
   const publish = (next: DocsStream): void => {
     if (next.sessionId === value.sessionId && next.signature === value.signature) return

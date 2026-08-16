@@ -19,6 +19,8 @@ const LANE_WIDTH = 20
 const CIRCLE_RADIUS = 5
 const PADDING_LEFT = 8
 const PAGE_SIZE = 50
+/** Complete-result bound of the accumulated graph (10 pages). */
+const MAX_GRAPH_ENTRIES = 500
 const PALETTE = [
   'var(--dsw-alias-brand-primary)',
   'var(--dsw-alias-state-success-primary)',
@@ -320,8 +322,14 @@ export function GitGraph({ cwd, gitGraph, gitShowCommit, workspaceStatus, onOpen
     const ctl = new AbortController()
     void gitGraph(cwd, PAGE_SIZE, entries.length, ctl.signal).then(
       (page) => {
-        setEntries(current => [...current, ...page.entries])
-        setHasMore(page.hasMore)
+        setEntries((current) => {
+          const next = [...current, ...page.entries]
+          // Complete-result bound: the lane solver and the row render both
+          // rebuild over every loaded entry, so the accumulated graph stops
+          // growing past this many rows instead of degrading per page.
+          setHasMore(page.hasMore && next.length < MAX_GRAPH_ENTRIES)
+          return next
+        })
         setLoadingMore(false)
       },
       (reason: unknown) => {

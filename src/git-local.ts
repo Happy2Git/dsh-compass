@@ -14,7 +14,7 @@ import { isAbsolute as isAbsolutePosix } from 'node:path/posix'
 import { isAbsolute as isAbsoluteWin32 } from 'node:path/win32'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: resolves `ctx.subprocess` to the subprocess seam's service.
@@ -150,6 +150,7 @@ function readShowCommitBody(body: unknown): { cwd: string; hash: string } {
     throw new RouteError(400, 'cwd must be an absolute path')
   }
   if (typeof record.hash !== 'string' || record.hash === '') throw new RouteError(400, 'missing hash')
+  if (!/^[0-9a-f]{4,40}$/.test(record.hash)) throw new RouteError(400, 'hash must be a git commit hash')
   return { cwd: record.cwd, hash: record.hash }
 }
 
@@ -183,6 +184,14 @@ function readWorkspaceDiffBody(body: unknown): { cwd: string; path: string } {
   if (typeof record.path !== 'string' || record.path === '' || record.path.length > 1024) {
     throw new RouteError(400, 'missing path')
   }
+  // The untracked branch diffs against an empty file, so the path must stay
+  // inside the repository: a wire value like ../../etc/passwd would otherwise
+  // read outside it.
+  const resolved = resolve(record.cwd, record.path)
+  const rel = relative(record.cwd, resolved)
+  if (rel.startsWith('..') || isAbsolute(rel)) {
+    throw new RouteError(400, 'path must stay inside the repository')
+  }
   return { cwd: record.cwd, path: record.path }
 }
 
@@ -194,6 +203,7 @@ function readShowDiffBody(body: unknown): { cwd: string; hash: string; path: str
     throw new RouteError(400, 'cwd must be an absolute path')
   }
   if (typeof record.hash !== 'string' || record.hash === '') throw new RouteError(400, 'missing hash')
+  if (!/^[0-9a-f]{4,40}$/.test(record.hash)) throw new RouteError(400, 'hash must be a git commit hash')
   if (typeof record.path !== 'string' || record.path === '' || record.path.length > 1024) {
     throw new RouteError(400, 'missing path')
   }
@@ -448,6 +458,7 @@ export default class LocalGit extends Git {
     for (const record of output.split('\x1e')) {
       if (record.trim() === '') continue
       const [hash, parents, refs, message, author, date] = record.split('\x00')
+      if (!/^[0-9a-f]{40}$/.test((hash ?? '').trim())) continue
       entries.push({
         hash: (hash ?? '').trim(),
         parents: (parents ?? '').trim() === '' ? [] : (parents ?? '').trim().split(/\s+/),

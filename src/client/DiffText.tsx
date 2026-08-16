@@ -36,15 +36,26 @@ const KIND_CLASS: Record<DiffLineKind, string | undefined> = {
  * @param props.text - the raw git diff text.
  * @returns the line list (empty diff renders one empty line, as git does).
  */
+/** Complete-result bound of one rendered diff (rows; the wire is byte-capped already). */
+const MAX_DIFF_LINES = 4000
+
+/**
+ * Render one unified diff as colored lines.
+ * @param props.text - the raw git diff text.
+ * @returns the line list (empty diff renders one empty line, as git does).
+ */
 export function DiffText({ text }: { text: string }): ReactNode {
   const lines = text.split('\n')
+  const cut = lines.length > MAX_DIFF_LINES
+  const visible = cut ? lines.slice(0, MAX_DIFF_LINES) : lines
   return (
     <div className={css.diffText}>
-      {lines.map((line, index) => (
+      {visible.map((line, index) => (
         <div key={index} className={KIND_CLASS[lineKind(line)] ?? css.diffLineContext} data-diff-line={lineKind(line)}>
           {line === '' ? ' ' : line}
         </div>
       ))}
+      {cut && <div className={css.diffLineMeta}>… 行数过多，仅显示前 {MAX_DIFF_LINES} 行。</div>}
     </div>
   )
 }
