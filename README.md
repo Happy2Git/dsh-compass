@@ -10,24 +10,24 @@ The package is one bundle, one loader row: the host half mounts the local git ba
 
 **Files tab** — lazy directory tree with directories-first order, basename filter, git working-tree status badges, and per-row open/copy actions:
 
-![Files tab](screenshots/01-files-tab.png)
+![Files tab](screenshots/01-files-tab.png?v=3)
 
 **Git tab** — framed working-tree block and commit tree: branch position, uncommitted files, lanes, ref badges, lazy commit expansion, and a refresh control. Workspace rows and commit files open their diff in the centered pop-out, colored by line role:
 
-![Git tab](screenshots/02-git-tab.png)
-![Working-tree diff preview](screenshots/06-workspace-diff.png)
+![Git tab](screenshots/02-git-tab.png?v=3)
+![Working-tree diff preview](screenshots/06-workspace-diff.png?v=3)
 
 **Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and pulls the complete history out-of-band on activation (up to 1,000 messages, the conversation window untouched), so both sections hold the complete log:
 
-![Context tab](screenshots/03-context-tab.png)
+![Context tab](screenshots/03-context-tab.png?v=3)
 
 **Directories first** — symlinked directories sort with the directories group:
 
-![Files tab, directories first](screenshots/04-files-tab-dirs-first.png)
+![Files tab, directories first](screenshots/04-files-tab-dirs-first.png?v=3)
 
 **Panel-file drag** — file rows drag their absolute path into the conversation; image files attach their content directly on vision models, other models receive the path sentence:
 
-![Panel file drag](screenshots/05-drag-image.png)
+![Panel file drag](screenshots/05-drag-image.png?v=3)
 
 ## Main-track compatibility
 
