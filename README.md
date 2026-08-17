@@ -72,7 +72,7 @@ git checkout 47f9438
 pnpm install && pnpm run build
 ```
 
-**Install from a local clone.** Clone this repository, build it, then add the clone by path from your dsh checkout:
+**Clone and install.** Clone this repository, build it, then add the clone by path from your dsh checkout:
 
 ```sh
 cd path://dsh-compass        # the dsh-compass checkout on this machine
@@ -86,7 +86,7 @@ Then, back in the dsh checkout:
 dsh plugin --profile web add path://dsh-compass
 ```
 
-That is the whole install. Two properties of the local path make it the path this project is developed against:
+That is the whole install. Two properties make it the path this project is developed against:
 
 - **No allowBuilds step.** pnpm installs a local directory as a `link:` dependency and never runs its `prepare` script, so there is no build gate to open — the clone's own `pnpm run build` is what produces `lib/`.
 - **The profile records a filesystem link.** The install lives and dies with the clone: keep the checkout in place, and a later `pnpm run build` inside it updates the running panel without re-adding (restart `dsh web` after a rebuild).

@@ -72,7 +72,7 @@ git checkout 47f9438
 pnpm install && pnpm run build
 ```
 
-**本地 clone 安装。** clone 本仓库、构建，然后回到 dsh 检出目录按路径安装：
+**克隆后安装。** clone 本仓库、构建，然后回到 dsh 检出目录按路径安装：
 
 ```sh
 cd path://dsh-compass        # 本机上的 dsh-compass 检出目录
