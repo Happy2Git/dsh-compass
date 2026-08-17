@@ -1,16 +1,24 @@
 # dsh-compass
 
-English | [中文](README.zh.md)
+[English](README.en.md) | 中文
 
-> **⚠️ Warning: the published npm release of dsh cannot show this panel — a source build can.** The last npm release of DeepSeek Harness predates the web slot system the panel renders through. Upstream `master` (≥ `47f9438`, verified) ships the slot system, module loader, and `shell.overlay` seat, and hosts this package directly — build the official repo from source and install there. The [fork](https://github.com/Happy2Git/deepseek-harness) keeps the same panel in-box. See [Requirements](#%EF%B8%8F-requirements).
+> **⚠️ 警告：npm 发布版 dsh 无法显示本面板——官方源码构建可以。** DeepSeek Harness 最近一次 npm 发布早于面板渲染所需的 web 槽位系统。上游 `master`（≥ `47f9438`，已验证）已包含槽位系统、模块加载器与 `shell.overlay` 挂载点，可直接承载本包——从官方仓库源码构建后安装即可。[fork](https://github.com/Happy2Git/deepseek-harness) 则内置同一面板。详见[要求](#%EF%B8%8F-要求)。
 
-A single-package [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin adding a right-side context-and-files panel to the Web GUI: directory browsing with git status badges, live injected-context documents with a compaction history stream (origin badges, measured occupancy strip, unread signals), a framed read-only git commit graph with working-tree status, panel-file drag into the conversation (image intake for vision models), and a session-log download action.
+单包形态的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件：为 Web 界面新增右侧上下文文件面板——带 git 状态徽章的目录浏览、实时重投影的注入上下文文档与压缩历史流水（来源标注 + 实测占用条 + 未读信号）、带边框的只读 Git 提交图与工作区状态、面板文件拖入对话（支持图片的模型直接收图），以及会话日志下载动作。
 
-The package is one bundle, one loader row: the host half mounts the local git backend (`/git/*`), the plugin-owned directory routes (`/dir/*`), and the `/export` command as child plugins; the browser half registers the panel into `shell.overlay` and the download action into the panel's header utilities.
+一个包 = 一个 bundle = 一行 loader 条目：host 半把本地 Git 后端（`/git/*`）、插件自有目录路由（`/dir/*`）和 `/export` 命令作为子插件挂载；浏览器半把面板注册进 `shell.overlay`，把下载动作注册进面板头部工具区。
 
-## ⚠️ Requirements
+## 截图
 
-The panel renders through the web slot system (`window.__ModuleLoader__`, the frozen module table, and the `shell.overlay` seat in `ui-layout`). dsh-compass runs on the GitHub source version of DeepSeek Harness — the npm release predates the slot system. Build it from source:
+**Git 标签** — 带边框的工作区区块加提交树：分支位置、未提交文件、泳道、引用徽章、惰性展开提交与刷新按钮。工作区行与提交内文件都在中部弹出 diff，按行角色着色：
+
+![Git 标签](screenshots/02-git-tab.png?v=3)
+
+更多截图见安装之后的[效果展示](#效果展示)。
+
+## ⚠️ 要求
+
+面板通过 web 槽位系统渲染（`window.__ModuleLoader__`、冻结模块表、`ui-layout` 的 `shell.overlay` 挂载点）。dsh-compass 适配的是 DeepSeek Harness 的 GitHub 源码版本——npm 发布版早于槽位系统。先从源码构建它：
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
@@ -18,74 +26,58 @@ cd deepseek-harness
 pnpm install && pnpm run build
 ```
 
-Hosts divide into three tiers, verified 2026-08:
+宿主分三档，2026-08 实测：
 
-- **Upstream `master`, source build — works.** `https://github.com/deepseek-ai/deepseek-harness` at `47f9438` contains the slot system, the `dsh.client` manifest handling, and the `shell.overlay` render site; this package's externals all resolve and the panel mounts. Build the repo from source (below) — the npm release is older than these commits.
-- **The [fork](https://github.com/Happy2Git/deepseek-harness) — works, panel in-box.** Its default `web` profile ships the same panel; installing this package there is for running the standalone artifact.
-- **Published npm release — does not work.** The last npm release predates the slot system; an install that passes every check while the GUI shows no panel is the expected symptom. Wait for the next upstream release that ships it.
+- **上游 `master` 源码构建——可用。** `https://github.com/deepseek-ai/deepseek-harness` 的 `47f9438` 已包含槽位系统、`dsh.client` 清单处理和 `shell.overlay` 渲染点；本包的外部模块全部可解析，面板正常挂载。按下面的步骤从源码构建官方仓库即可——npm 发布版还落后于这些提交。
+- **[fork](https://github.com/Happy2Git/deepseek-harness)——可用，面板内置。** fork 默认 `web` profile 自带同一面板，在 fork 上安装本包是为了运行独立产物。
+- **npm 发布版——不可用。** 最近一次 npm 发布早于槽位系统；「每一步安装检查都通过、界面上却没有面板」就是它的预期症状。等下一次包含槽位系统的上游发布。
 
-Confirm the mounting surface on your host:
+先确认宿主的挂载面：
 
 ```sh
 pnpm dsh --profile web --dump-config
 ```
 
-On the fork the output must contain the `ui-context-files`, `git`, `directory-routes`, and `session-log-download` rows. On an upstream source build the panel needs no upstream rows of its own — check instead that the served page's boot manifest carries the `modules` row (`packages/client/modules`, the `__ModuleLoader__` provider).
+fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、`session-log-download` 四行。上游源码构建上，面板不依赖任何上游行——改查服务页面的启动清单里有 `modules` 行（`packages/client/modules`，即 `__ModuleLoader__` 的提供方）。
 
-## Screenshots
+## 安装
 
-**Git tab** — framed working-tree block and commit tree: branch position, uncommitted files, lanes, ref badges, lazy commit expansion, and a refresh control. Workspace rows and commit files open their diff in the centered pop-out, colored by line role:
-
-![Git tab](screenshots/02-git-tab.png?v=3)
-
-More screenshots in the [Gallery](#gallery) after Install.
-
-## Main-track compatibility
-
-The package carries every capability surface it needs, so it installs on any dsh build whose web composition includes the slot system (in upstream `master` since the slot-system commit; the last npm release predates it):
-
-- directory listing and text reads go through the package's own bounded browser (`/dir/*` reads the filesystem directly — no `directoryPicker.readText`, no browse backend requirement, works even when the profile composes a native chooser);
-- the git seam and its local backend ship inside the package (`ctx.subprocess` + `ctx.webServer` come from the base composition);
-- the conversation reserve uses the package's own `--dsh-compass-width` variable and a CSS `:has()` rule against the shell's stable `[data-shell-overlay]` hook — no fork CSS required (the fork's in-box rule reads a different variable, so no composition double-pads).
-
-## Install
-
-**Clone and install.** Clone this repository, build it, then add the clone by path from your dsh checkout:
+**克隆后安装。** clone 本仓库、构建，然后回到 dsh 检出目录按路径安装：
 
 ```sh
 git clone https://github.com/Happy2Git/dsh-compass.git
 cd dsh-compass
-pnpm install                 # the build toolchain (tsdown) — once per clone
-pnpm run build               # emits lib/ (index.js + client.js)
+pnpm install                 # 装构建工具链（tsdown）——每个 clone 一次
+pnpm run build               # 产出 lib/（index.js + client.js）
 ```
 
-Then, back in the dsh checkout:
+然后回到 dsh 检出目录：
 
 ```sh
 pnpm dsh plugin --profile web add /path/to/dsh-compass
 ```
 
-That is the whole install. Two properties make it the path this project is developed against:
+到此安装完成。两条性质使它成为本项目开发对标的安装方式：
 
-- **No allowBuilds step.** pnpm installs a local directory as a `link:` dependency and never runs its `prepare` script, so there is no build gate to open — the clone's own `pnpm run build` is what produces `lib/`.
-- **The profile records a filesystem link.** The install lives and dies with the clone: keep the checkout in place, and a later `pnpm run build` inside it updates the running panel without re-adding (restart `pnpm dsh web` after a rebuild).
+- **没有 allowBuilds 步骤。** pnpm 把本地目录按 `link:` 依赖安装，不会运行它的 `prepare` 脚本，因此不存在构建授权门槛——`lib/` 由 clone 自己的 `pnpm run build` 产出。
+- **profile 记录的是文件系统链接。** 这份安装随 clone 生、随 clone 灭：检出目录不能删也不能挪；在 clone 里重新 `pnpm run build` 后重启 `pnpm dsh web` 即生效，无需重新 add。
 
-**Reproducible deployments: pinned-commit git install.** When the host must install without a clone, add the GitHub spec and open the build gate pnpm blocks:
+**可复现部署：钉 commit 的 git 安装。** 宿主上没有 clone 时，用 GitHub spec 安装并放行 pnpm 拦截的构建：
 
 ```sh
 pnpm dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
 ```
 
-The git install builds through the package's `prepare` script, which pnpm ≥10 blocks until allowed. On the first failed `add`, pnpm prints the exact allowlist key — copy every key it prints (the same commit can appear as both a `codeload.github.com/.../tar.gz/...` key and a `git+https://github.com/...git#...` key) into the profile's `pnpm-workspace.yaml`, then re-run the same `add`. Do not build inside `node_modules` by hand: a failed `add` never registers the layer, and a hand build does not register it either. Pin a commit so a later push cannot silently change what runs.
+git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发环境依赖）。pnpm ≥10 会拦截构建脚本：首次 `add` 失败后，把 pnpm 打印的确切键复制进 profile 的 `pnpm-workspace.yaml`——同一个 commit 可能打印出两种键（`codeload.github.com/.../tar.gz/...` 和 `git+https://github.com/...git#...`），**两种都放行**再重跑同一条 `add`。不要手动进 `node_modules` 补构建：失败的 `add` 不会登记层，手动构建同样不会登记。这条允许意味着「安装时执行本包代码」，请固定 commit，防止后续推送悄悄改变执行内容。
 
-Verify either install:
+两种安装都要核对：
 
-   - `~/.dsh/profiles/web/package.json` lists `dsh-compass` in both `dependencies` and `dsh.profile.bundles` (a missing bundles entry means the `add` did not succeed; re-run `pnpm dsh plugin --profile web install` to register it);
-   - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` contains `index.js` and `client.js` (built by `pnpm run build` in the clone, or by `prepare` for git installs).
+   - `~/.dsh/profiles/web/package.json` 的 `dependencies` 和 `dsh.profile.bundles` 里都有 `dsh-compass`（bundles 缺条目说明 `add` 没有成功，补跑 `pnpm dsh plugin --profile web install` 登记）；
+   - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` 里有 `index.js` 和 `client.js`（本地 clone 由 `pnpm run build` 产出，git 安装由 `prepare` 产出）。
 
-On an **upstream source build** nothing else is needed: the package's own bundle patch disables the stock `session-log-download` row (its `/export` command would collide with this package's, and this package ships the command plus its own download button and dialog; the ZIP endpoint itself belongs to ApiProxy and stays).
+**上游源码构建**到此即可：本包自己的 bundle patch 会禁用官方的 `session-log-download` 行（它的 `/export` 命令与本包的撞名；本包自带该命令与自己的下载按钮和对话框，ZIP 端点本身属于 ApiProxy，不受影响）。
 
-The **fork's** default `web` profile ships the same panel in-box. To use this package instead, disable the in-box panel rows in the profile's own `cordis.patch.yml` (`session-log-download` is already handled by the package's own patch):
+**fork** 默认的 `web` profile 已内置同一面板。改用本包时，在 profile 自己的 `cordis.patch.yml` 里禁用内置面板行（`session-log-download` 已由本包的 patch 处理）：
 
    ```yaml
    - id: ui-context-files
@@ -96,62 +88,60 @@ The **fork's** default `web` profile ships the same panel in-box. To use this pa
      disabled: true
    ```
 
-Start (or restart, if it is already running) `pnpm dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
+启动（若已在运行则重启）`pnpm dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
 
-## Security and performance
+## main-track 兼容性
 
-**Security.** Every host route this package registers is loopback-only and refuses to load on a non-loopback webserver host. Request bodies are capped at 64 KiB and must be `application/json`; every path must be fully qualified, so a wire value never resolves against the host working directory. Reads fail closed: oversized images refuse whole (`file-too-large`, plus the composed attachment per-file limit as 413), image formats come from magic bytes rather than filename extensions, git hashes are format-validated so no option can ride the hash slot, workspace-diff paths must stay inside the repository, and a git call outside a repository answers `not-a-repository`. The panel is read-only: git commands never write, dropped images are never copied into the workspace, and file content crosses the wire only through the bounded read routes.
+本包自带它需要的全部能力面，因此可以装到任何 web 组合包含槽位系统的 dsh 构建上（槽位系统已在上游 `master`；最后一次 npm 发布早于它）：
 
-**Performance.** The context tab's document stream is signature-gated, so the panel re-projects and re-renders only when the injected documents actually change, not per stream batch. Complete history arrives through `/dir/injected-docs`, which filters the durable log server-side and sends text blocks only; on a session with 181k events this replaced roughly 120 MB of history-page JSON per activation with a single KB-scale response. Every listing and read is bounded (`maxEntries`, `maxTextBytes`, `maxImageBytes`, git `maxOutputBytes` and `maxCommits`), every fetch rides an `AbortSignal` that cancels with the caller, and the per-session fetch markers prune with the session list, so nothing accumulates per departed session. Directory badges list ignored entries through `ls-files --directory`, which collapses a node_modules to one line (measured 14 MB → ~18 KB on a fork-repo root); a truncated ignored listing degrades gracefully, the M/A/D/U badges stay complete.
+- 目录列表与文本读取走包内自带的有界浏览器（`/dir/*` 直接读文件系统——不需要 `directoryPicker.readText`、不需要 browse 后端，profile 组合了原生选择器也能用）；
+- git seam 与本地后端随包内置（`ctx.subprocess` + `ctx.webServer` 来自基础组合）；
+- 对话避让使用包自己的 `--dsh-compass-width` 变量 + 针对 shell 稳定钩子 `[data-shell-overlay]` 的 CSS `:has()` 规则——不需要 fork 的 CSS（fork 内置规则读的是另一个变量，任何组合都不会双重避让）。
 
-## Gallery
+## 安全与性能
 
-**Git tab** — framed working-tree block and commit tree: branch position, uncommitted files, lanes, ref badges, lazy commit expansion, and a refresh control. Workspace rows and commit files open their diff in the centered pop-out, colored by line role:
+**安全。** 本包注册的所有宿主路由仅限回环，在非回环 webserver 主机上直接拒绝加载。请求体上限 64 KiB 且必须是 `application/json`；路径必须完全限定，线上值绝不会相对宿主工作目录解析。读取失败即关闭：超限图片整读拒绝（`file-too-large`，叠加已组合附件的单文件上限 413），图片格式按魔数判定而非文件名扩展名，git 哈希做格式校验使选项无法混进哈希槽，工作区 diff 路径必须留在仓库内，仓库外的 git 调用回答 `not-a-repository`。面板只读：git 命令从不写入，拖入的图片从不复制进工作区，文件内容只经有界读取路由跨线。
 
-![Git tab](screenshots/02-git-tab.png?v=3)
-![Working-tree diff preview](screenshots/06-workspace-diff.png?v=3)
+**性能。** 上下文标签的文档流做了签名门控，面板只在注入文档真正变化时重投影、重渲染，不随每个流式批次动作。完整历史经 `/dir/injected-docs` 获取，该路由在服务端过滤持久化日志、只发文本块；在 18 万事件的会话上，它把每次激活约 120 MB 的历史页 JSON 换成单次 KB 级响应。所有列举与读取都有界（`maxEntries`、`maxTextBytes`、`maxImageBytes`、git 的 `maxOutputBytes` 与 `maxCommits`），每次抓取都挂 `AbortSignal` 随调用方取消，按会话的抓取标记随会话列表剪枝，离开的会话不留下累积。目录徽章的忽略项走 `ls-files --directory` 折叠列出，一个 node_modules 只占一行（fork 仓库根目录实测 14 MB 输出降到约 18 KB）；截断时仅忽略项优雅降级，M/A/D/U 徽章不受影响。
 
-**Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and pulls the complete history out-of-band on activation (up to 1,000 messages, the conversation window untouched), so both sections hold the complete log. Since v0.14 an **occupancy strip** heads the view (measured bytes per section, colored by origin class — instructions / skill / plugin / cross-session recall / runtime), every row carries its **origin badge and measured size**, the history section names **the latest compaction** (how many documents and bytes it moved out of the live window), and while the context tab is inactive new injections and boundary moves badge the tab with an **unread count** (cleared on open; a dot marks it when the panel is collapsed):
+## 效果展示
 
-![Context tab](screenshots/03-context-tab.png?v=4)
+**Git 标签** — 带边框的工作区区块加提交树：分支位置、未提交文件、泳道、引用徽章、惰性展开提交与刷新按钮。工作区行与提交内文件都在中部弹出 diff，按行角色着色：
 
-**Directories first** — symlinked directories sort with the directories group:
+![Git 标签](screenshots/02-git-tab.png?v=3)
+![工作区 diff 预览](screenshots/06-workspace-diff.png?v=3)
 
-![Files tab, directories first](screenshots/04-files-tab-dirs-first.png?v=3)
+**上下文标签** — 注入上下文文档分为当前有效窗口与压缩历史流水，带搜索；视图随会话事件流实时重投影，会话激活时带外拉取完整历史（最多 1,000 条消息，不动共享对话窗口），两个区块持有完整日志。v0.14 起标签头新增**占用条**（按字节实测的窗口占用，分指令文件/技能/插件/跨会话召回/运行时五类来源着色）、每篇文档带**来源标注与实测大小**、历史流水头部注明**最近一次压缩**移出的篇数与体量；不在上下文标签时，新注入与压缩边界移动会让「上下文」标签页带**未读计数**徽标（打开即清零，折叠态显示圆点）：
 
-**Panel-file drag** — file rows drag their absolute path into the conversation. On fork builds the composer's native intake consumes the drag (image files attach their content directly on vision models). On every other host — including upstream source builds, whose composer does not know the drag MIME yet — the package's own window-level intake takes the drop and appends the path sentence to the draft, which the agent can still act on with its tools. The intake yields to a composer that claims the drag, so both hosts keep exactly one intake:
+![上下文标签](screenshots/03-context-tab.png?v=4)
 
-![Panel file drag](screenshots/05-drag-image.png?v=3)
+**目录优先** — 指向目录的符号链接与目录同组排序：
 
-## Uninstall
+![文件夹标签，目录优先](screenshots/04-files-tab-dirs-first.png?v=3)
+
+**面板文件拖入** — 文件行把绝对路径拖进对话。fork 上由 composer 原生接收（支持视觉的模型对图片直接附加内容）；其他宿主——包括尚不认识该拖拽 MIME 的上游源码构建——由包内自带的整窗接收器接住拖放，把路径说明追加进草稿，模型仍可用工具处理该路径。接收器对已认领拖拽的 composer 主动让位，两种宿主都只有一条接收链路：
+
+![面板文件拖入](screenshots/05-drag-image.png?v=3)
+
+## 卸载
 
 ```sh
 pnpm dsh plugin --profile web remove dsh-compass
 ```
 
-This runs `pnpm remove` and drops the package from the layer list; it works even when the profile fails to boot. On the fork, delete the three `disabled: true` rows added above to restore the in-box panel; on an upstream build the package-patched `session-log-download` row restores itself.
+它执行 `pnpm remove` 并把本包从层列表摘除；profile 无法启动时这条命令仍然可用。fork 上删掉上面加的三行 `disabled: true` 恢复内置面板；上游构建上被本包 patch 禁用的 `session-log-download` 行随卸载自动恢复。
 
-## When the panel still does not appear
+## 面板仍然不出现时
 
-- **Official npm release of dsh.** Expected, not an install failure. The published release has no slot system, so the panel cannot render; uninstall as above, and either build upstream `master` from source (see Install) or wait for the next upstream release.
-- **`ERR_MODULE_NOT_FOUND` at boot.** The `prepare` build was blocked or skipped; apply the `allowBuilds` step and re-run the `add`.
-- **Boot fails with `command "export" is already registered`.** The composition still mounts the stock `session-log-download` row and the plugin's patch did not land after it. Ensure `dsh-compass` sits in `dsh.profile.bundles` (plugin `add` appends it after the stock bundles) and that the profile's `node_modules/dsh-compass/cordis.patch.yml` contains the `session-log-download` disable.
-- **Host routes answer but no panel in the GUI.** The host build lacks the slot system; re-check the requirements.
+- **官方 npm 发布版 dsh。** 预期行为，不是安装失败。发布版没有槽位系统，面板无法渲染；按上文卸载，要么按安装一节从上游 `master` 源码构建，要么等下一次上游发布。
+- **启动报 `ERR_MODULE_NOT_FOUND`。** `prepare` 构建被拦截或未执行；补 `allowBuilds` 后重跑 `add`。
+- **启动报 `command "export" is already registered`。** 组合里还在挂官方 `session-log-download` 行，而本包的 patch 没排在它后面生效。确认 `dsh.profile.bundles` 里有 `dsh-compass`（插件 `add` 会排在官方 bundle 之后），且 profile 的 `node_modules/dsh-compass/cordis.patch.yml` 里有对 `session-log-download` 的禁用。
+- **host 路由有响应，界面没有面板。** 宿主构建缺槽位系统；回到要求检查。
 
-## Building
+## 构建
 
-`pnpm build` (also the `prepare` script) runs tsdown only — the shipped entry points transpile from `src/` with no type checking, so a git install builds self-contained. Type safety is owned where the sources originate: these sources are typechecked under the fork's strict aggregate before extraction, and the bundled `tsconfig.json` maps the `@deepseek-ai/dsh-*` types to a sibling `../deepseek-harness` checkout for editor support.
+`pnpm build`（也就是 `prepare` 脚本）只跑 tsdown：发布入口从 `src/` 转译、不做类型检查，git 安装因此完全自包含。类型安全由源码的源头负责：这些源码在抽取前经过 fork 严格聚合类型检查，仓库自带的 `tsconfig.json` 把 `@deepseek-ai/dsh-*` 类型映射到旁边的 `../deepseek-harness` 检出，供编辑器使用。
 
-## Roadmap
+## 许可证
 
-The package is published and installable; here is where it goes next. Star or watch the repo to follow along.
-
-- **English UI locale.** The panel copy is Chinese today; add an English dictionary behind the locale service.
-- **Exact-path git output.** The git backend parses `--name-status`/`--numstat` with default quoting; switch to `-z` NUL-terminated output so paths with quotes or tabs display exactly.
-- **Rename-aware file list.** Show a rename as one row instead of a delete + add pair.
-- **Drag-to-attach on upstream.** Upstream's composer does not know the panel drag MIME, so the package's own intake degrades to the path sentence; an upstream ui-conversation PR adopting the MIME would restore image attach on source builds.
-- **dsh-terminal.** The terminal TUI is packaged the same way and stays local until its feature set grows.
-
-## License
-
-MIT. Copyright (c) 2026 DeepSeek.
+MIT。Copyright (c) 2026 DeepSeek。
