@@ -108,11 +108,25 @@ Git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发�
 
 重启 `dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
 
-本地目录安装不需要任何构建授权：
+**保留 clone、按本地目录安装** — 不需要任何构建授权，且安装的是活链接：
 
 ```sh
-dsh plugin --profile web add ./dsh-compass
+git clone https://github.com/Happy2Git/dsh-compass.git
+cd dsh-compass
+pnpm install        # 装构建工具链（tsdown）——每个 clone 一次
+pnpm run build      # 产出 lib/（index.js + client.js）
 ```
+
+然后在你的 dsh 检出目录里，按路径安装这个 clone：
+
+```sh
+dsh plugin --profile web add /path/to/dsh-compass
+```
+
+这条路径与上面的 git 安装有两点不同：
+
+- **没有 allowBuilds 步骤。** pnpm 把本地目录按 `link:` 依赖安装，不会运行它的 `prepare` 脚本，因此不存在构建授权门槛——`lib/` 由 clone 自己的 `pnpm run build` 产出。
+- **profile 记录的是文件系统链接，不是钉死的 commit。** 这份安装随 clone 生、随 clone 灭：clone 不能删也不能挪；在 clone 里重新 `pnpm run build` 后重启 `dsh web` 即生效，无需重新 add。需要不依赖 clone 的可复现部署时，选上面钉 commit 的 git 安装。
 
 ## 卸载
 

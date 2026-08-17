@@ -108,11 +108,25 @@ The **fork's** default `web` profile ships the same panel in-box. To use this pa
 
 Restart `dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
 
-Local checkouts install without any build permission:
+**Keep a clone and install from the local directory** — no build authorization needed, and the installed code stays live:
 
 ```sh
-dsh plugin --profile web add ./dsh-compass
+git clone https://github.com/Happy2Git/dsh-compass.git
+cd dsh-compass
+pnpm install        # the build toolchain (tsdown) — once per clone
+pnpm run build      # emits lib/ (index.js + client.js)
 ```
+
+Then, from your dsh checkout, add the clone by path:
+
+```sh
+dsh plugin --profile web add /path/to/dsh-compass
+```
+
+Two things make this path different from the git install above:
+
+- **No allowBuilds step.** pnpm installs a local directory as a `link:` dependency and never runs its `prepare` script, so there is no build gate to open — the clone's own `pnpm run build` is what produces `lib/`.
+- **The profile records a filesystem link, not a pinned commit.** The install lives and dies with the clone: keep it in place, and a later `pnpm run build` inside it updates the running panel without re-adding (restart `dsh web` after a rebuild). Choose the pinned-commit git install when the deployment must stay reproducible without the clone.
 
 ## Uninstall
 
