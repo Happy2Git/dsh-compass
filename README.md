@@ -72,7 +72,7 @@ git checkout 47f9438
 pnpm install && pnpm run build
 ```
 
-**Install from a local clone (the tested path).** Clone this repository, build it, then add the clone by path from your dsh checkout:
+**Install from a local clone.** Clone this repository, build it, then add the clone by path from your dsh checkout:
 
 ```sh
 cd path://dsh-compass        # the dsh-compass checkout on this machine
