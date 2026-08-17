@@ -2,9 +2,9 @@
 
 English | [中文](README.md)
 
-> **⚠️ Warning: the published npm release of dsh cannot show this panel — a source build can.** The last npm release of DeepSeek Harness predates the web slot system the panel renders through. Upstream `master` (≥ `47f9438`, verified) ships the slot system, module loader, and `shell.overlay` seat, and hosts this package directly — build the official repo from source and install there. The [fork](https://github.com/Happy2Git/deepseek-harness) keeps the same panel in-box. See [Requirements](#%EF%B8%8F-requirements).
+> **⚠️ Warning: the published npm release of dsh is too old to show this plugin — you must build dsh from the official GitHub source.** The last npm release of DeepSeek Harness predates the web slot system this plugin renders through. Upstream `master` (≥ `47f9438`, verified) ships the slot system, module loader, and `shell.overlay` seat, so it can install the panel directly. If you have never installed dsh and want to try the author's modified build instead, install the [fork](https://github.com/Happy2Git/deepseek-harness) — the panel is built in. See [Requirements](#%EF%B8%8F-requirements).
 
-A single-package [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin adding a right-side context-and-files panel to the Web GUI: directory browsing with git status badges, live injected-context documents with a compaction history stream (origin badges, measured occupancy strip, unread signals), a framed read-only git commit graph with working-tree status, panel-file drag into the conversation (image intake for vision models), and a session-log download action.
+A right-side panel plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): adds the right-side context and folder panels plus Git status monitoring to the Web GUI — directory browsing with git status badges, live re-projected injected-context documents with a compaction history stream (origin badges, measured occupancy strip, unread signals), a framed read-only Git commit graph with working-tree status, panel-file drag into the conversation (image intake for vision models), and a session-log download action.
 
 The package is one bundle, one loader row: the host half mounts the local git backend (`/git/*`), the plugin-owned directory routes (`/dir/*`), and the `/export` command as child plugins; the browser half registers the panel into `shell.overlay` and the download action into the panel's header utilities.
 
@@ -18,7 +18,7 @@ More screenshots in the [Gallery](#gallery) after Install.
 
 ## ⚠️ Requirements
 
-The panel renders through the web slot system (`window.__ModuleLoader__`, the frozen module table, and the `shell.overlay` seat in `ui-layout`). dsh-compass runs on the GitHub source version of DeepSeek Harness — the npm release predates the slot system. Build it from source:
+dsh-compass runs on the GitHub source version of DeepSeek Harness. The plugin renders through the web slot system (`window.__ModuleLoader__`, the frozen module table, the `shell.overlay` seat in `ui-layout`), which the npm release does not carry yet — so the dsh must be built from source:
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
@@ -26,19 +26,11 @@ cd deepseek-harness
 pnpm install && pnpm run build
 ```
 
-Hosts divide into three tiers, verified 2026-08:
+Verified 2026-08:
 
-- **Upstream `master`, source build — works.** `https://github.com/deepseek-ai/deepseek-harness` at `47f9438` contains the slot system, the `dsh.client` manifest handling, and the `shell.overlay` render site; this package's externals all resolve and the panel mounts. Build the repo from source (below) — the npm release is older than these commits.
-- **The [fork](https://github.com/Happy2Git/deepseek-harness) — works, panel in-box.** Its default `web` profile ships the same panel; installing this package there is for running the standalone artifact.
+- **Upstream `master`, source build — works.** `https://github.com/deepseek-ai/deepseek-harness` at `47f9438` contains the slot system, the `dsh.client` manifest handling, and the `shell.overlay` render site; this package's externals all resolve and the panel mounts. Follow the Install section below to build the official repo from source.
+- **The author's modified build, the [fork](https://github.com/Happy2Git/deepseek-harness) — works, plugin built in.** Its default `web` profile ships the same panel.
 - **Published npm release — does not work.** The last npm release predates the slot system; an install that passes every check while the GUI shows no panel is the expected symptom. Wait for the next upstream release that ships it.
-
-Confirm the mounting surface on your host:
-
-```sh
-pnpm dsh --profile web --dump-config
-```
-
-On the fork the output must contain the `ui-context-files`, `git`, `directory-routes`, and `session-log-download` rows. On an upstream source build the panel needs no upstream rows of its own — check instead that the served page's boot manifest carries the `modules` row (`packages/client/modules`, the `__ModuleLoader__` provider).
 
 ## Install
 
@@ -51,7 +43,7 @@ pnpm install                 # the build toolchain (tsdown) — once per clone
 pnpm run build               # emits lib/ (index.js + client.js)
 ```
 
-Then, back in the dsh checkout:
+Then, back in the dsh launch directory:
 
 ```sh
 pnpm dsh plugin --profile web add /path/to/dsh-compass
@@ -75,18 +67,7 @@ Verify either install:
    - `~/.dsh/profiles/web/package.json` lists `dsh-compass` in both `dependencies` and `dsh.profile.bundles` (a missing bundles entry means the `add` did not succeed; re-run `pnpm dsh plugin --profile web install` to register it);
    - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` contains `index.js` and `client.js` (built by `pnpm run build` in the clone, or by `prepare` for git installs).
 
-On an **upstream source build** nothing else is needed: the package's own bundle patch disables the stock `session-log-download` row (its `/export` command would collide with this package's, and this package ships the command plus its own download button and dialog; the ZIP endpoint itself belongs to ApiProxy and stays).
-
-The **fork's** default `web` profile ships the same panel in-box. To use this package instead, disable the in-box panel rows in the profile's own `cordis.patch.yml` (`session-log-download` is already handled by the package's own patch):
-
-   ```yaml
-   - id: ui-context-files
-     disabled: true
-   - id: git
-     disabled: true
-   - id: directory-routes
-     disabled: true
-   ```
+The **fork's** default `web` profile ships the same panel in-box; to use this package instead, disable the in-box panel rows in the profile's own `cordis.patch.yml` (`ui-context-files`, `git`, `directory-routes`; `session-log-download` is already handled by the package's own patch).
 
 Start (or restart, if it is already running) `pnpm dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
 

@@ -2,15 +2,15 @@
 
 [English](README.en.md) | 中文
 
-> **⚠️ 警告：npm 发布版 dsh 无法显示本面板——官方源码构建可以。** DeepSeek Harness 最近一次 npm 发布早于面板渲染所需的 web 槽位系统。上游 `master`（≥ `47f9438`，已验证）已包含槽位系统、模块加载器与 `shell.overlay` 挂载点，可直接承载本包——从官方仓库源码构建后安装即可。[fork](https://github.com/Happy2Git/deepseek-harness) 则内置同一面板。详见[要求](#%EF%B8%8F-要求)。
+> **⚠️ 警告：npm 发布版 dsh 版本落后，无法显示本插件。必须使用官方github的源码构建的dsh。** DeepSeek Harness 最近一次 npm 发布早于本插件渲染所需的 web 槽位系统。上游 `master`（≥ `47f9438`，已验证）已包含槽位系统、模块加载器与 `shell.overlay` 挂载点，可直接安装本插件。如果之前没有安装过dsh，想直接体验作者的魔改版，也可以直接安装[fork](https://github.com/Happy2Git/deepseek-harness) ，里面内置了这个插件。详见[要求](#%EF%B8%8F-要求)。
 
-单包形态的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件：为 Web 界面新增右侧上下文文件面板——带 git 状态徽章的目录浏览、实时重投影的注入上下文文档与压缩历史流水（来源标注 + 实测占用条 + 未读信号）、带边框的只读 Git 提交图与工作区状态、面板文件拖入对话（支持图片的模型直接收图），以及会话日志下载动作。
+ [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 页面落盘插件：为 Web 界面新增右侧上下文，文件夹面板和Git状态监控。具体包括带 git 状态徽章的目录浏览、实时重投影的注入上下文文档与压缩历史流水（来源标注 + 实测占用条 + 未读信号）、带边框的只读 Git 提交图与工作区状态、面板文件拖入对话（支持图片的模型直接收图），以及会话日志下载动作。
 
-一个包 = 一个 bundle = 一行 loader 条目：host 半把本地 Git 后端（`/git/*`）、插件自有目录路由（`/dir/*`）和 `/export` 命令作为子插件挂载；浏览器半把面板注册进 `shell.overlay`，把下载动作注册进面板头部工具区。
+一个包 = 一个 bundle = 一行 loader 条目：host侧把本地 Git 后端（`/git/*`）、插件自有目录路由（`/dir/*`）和 `/export` 命令作为子插件挂载；浏览器侧把面板注册进 `shell.overlay`，把下载动作注册进面板头部工具区。
 
-## 截图
+## 截图展示
 
-**Git 标签** — 带边框的工作区区块加提交树：分支位置、未提交文件、泳道、引用徽章、惰性展开提交与刷新按钮。工作区行与提交内文件都在中部弹出 diff，按行角色着色：
+**Git 标签** — 带边框的工作区区块加提交树：分支位置、未提交文件、track、引用徽章、惰性展开提交与刷新按钮。工作区行与提交内文件都在中部弹出 diff，按行角色着色：
 
 ![Git 标签](screenshots/02-git-tab.png?v=3)
 
@@ -18,7 +18,7 @@
 
 ## ⚠️ 要求
 
-面板通过 web 槽位系统渲染（`window.__ModuleLoader__`、冻结模块表、`ui-layout` 的 `shell.overlay` 挂载点）。dsh-compass 适配的是 DeepSeek Harness 的 GitHub 源码版本——npm 发布版早于槽位系统。先从源码构建它：
+dsh-compass 适配的是 DeepSeek Harness 的 GitHub 源码版本。因为该插件通过 web 槽位系统渲染（`window.__ModuleLoader__`、冻结模块表、`ui-layout` 的 `shell.overlay` 挂载点），npm 发布版较为落后，尚没有槽位系统。所以需要源码构建的dsh：
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
@@ -26,19 +26,11 @@ cd deepseek-harness
 pnpm install && pnpm run build
 ```
 
-宿主分三档，2026-08 实测：
+2026-08 实测：
 
-- **上游 `master` 源码构建——可用。** `https://github.com/deepseek-ai/deepseek-harness` 的 `47f9438` 已包含槽位系统、`dsh.client` 清单处理和 `shell.overlay` 渲染点；本包的外部模块全部可解析，面板正常挂载。按下面的步骤从源码构建官方仓库即可——npm 发布版还落后于这些提交。
-- **[fork](https://github.com/Happy2Git/deepseek-harness)——可用，面板内置。** fork 默认 `web` profile 自带同一面板，在 fork 上安装本包是为了运行独立产物。
+- **上游 `master` 源码构建——可用。** `https://github.com/deepseek-ai/deepseek-harness` 的 `47f9438` 已包含槽位系统、`dsh.client` 清单处理和 `shell.overlay` 渲染点；本包的外部模块全部可解析，面板正常挂载。按下面安装部分的步骤从源码构建官方仓库即可。
+- 作者魔改版**[fork](https://github.com/Happy2Git/deepseek-harness)——可用，插件内置。** fork 默认 `web` profile 自带同一面板。
 - **npm 发布版——不可用。** 最近一次 npm 发布早于槽位系统；「每一步安装检查都通过、界面上却没有面板」就是它的预期症状。等下一次包含槽位系统的上游发布。
-
-先确认宿主的挂载面：
-
-```sh
-pnpm dsh --profile web --dump-config
-```
-
-fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、`session-log-download` 四行。上游源码构建上，面板不依赖任何上游行——改查服务页面的启动清单里有 `modules` 行（`packages/client/modules`，即 `__ModuleLoader__` 的提供方）。
 
 ## 安装
 
@@ -51,7 +43,7 @@ pnpm install                 # 装构建工具链（tsdown）——每个 clone 
 pnpm run build               # 产出 lib/（index.js + client.js）
 ```
 
-然后回到 dsh 检出目录：
+然后回到 dsh 的启动目录：
 
 ```sh
 pnpm dsh plugin --profile web add /path/to/dsh-compass
@@ -75,18 +67,8 @@ git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发�
    - `~/.dsh/profiles/web/package.json` 的 `dependencies` 和 `dsh.profile.bundles` 里都有 `dsh-compass`（bundles 缺条目说明 `add` 没有成功，补跑 `pnpm dsh plugin --profile web install` 登记）；
    - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` 里有 `index.js` 和 `client.js`（本地 clone 由 `pnpm run build` 产出，git 安装由 `prepare` 产出）。
 
-**上游源码构建**到此即可：本包自己的 bundle patch 会禁用官方的 `session-log-download` 行（它的 `/export` 命令与本包的撞名；本包自带该命令与自己的下载按钮和对话框，ZIP 端点本身属于 ApiProxy，不受影响）。
 
-**fork** 默认的 `web` profile 已内置同一面板。改用本包时，在 profile 自己的 `cordis.patch.yml` 里禁用内置面板行（`session-log-download` 已由本包的 patch 处理）：
-
-   ```yaml
-   - id: ui-context-files
-     disabled: true
-   - id: git
-     disabled: true
-   - id: directory-routes
-     disabled: true
-   ```
+**fork** 默认的 `web` profile 已内置同一面板；改用本包时，在 profile 自己的 `cordis.patch.yml` 里禁用内置面板行（`ui-context-files`、`git`、`directory-routes`；`session-log-download` 已由本包的 patch 处理）。
 
 启动（若已在运行则重启）`pnpm dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
 
