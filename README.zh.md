@@ -63,7 +63,7 @@ fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、
 
 ## 安装
 
-**上游源码构建**先构建官方仓库、用它的 CLI（以 `master` 的 `47f9438` 验证）：
+**先备好宿主。** 面板通过 web 槽位系统渲染。官方仓库要先源码构建、用它的 CLI（以 `master` 的 `47f9438` 验证）：
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
@@ -73,25 +73,37 @@ pnpm install && pnpm run build
 pnpm dsh --profile web --port 3080     # 官方 web profile 启动 Web 界面
 ```
 
-之后，任何通过上面要求检查的宿主，固定 commit 安装本包：
+**本地 clone 安装（已验证的推荐流程）。** clone 本仓库、构建，然后回到 dsh 检出目录按路径安装：
+
+```sh
+cd path://dsh-compass        # 本机上的 dsh-compass 检出目录
+pnpm install                 # 装构建工具链（tsdown）——每个 clone 一次
+pnpm run build               # 产出 lib/（index.js + client.js）
+```
+
+然后回到 dsh 检出目录：
+
+```sh
+dsh plugin --profile web add path://dsh-compass
+```
+
+到此安装完成。本地路径两条性质使它成为本项目开发对标的安装方式：
+
+- **没有 allowBuilds 步骤。** pnpm 把本地目录按 `link:` 依赖安装，不会运行它的 `prepare` 脚本，因此不存在构建授权门槛——`lib/` 由 clone 自己的 `pnpm run build` 产出。
+- **profile 记录的是文件系统链接。** 这份安装随 clone 生、随 clone 灭：检出目录不能删也不能挪；在 clone 里重新 `pnpm run build` 后重启 `dsh web` 即生效，无需重新 add。
+
+**可复现部署：钉 commit 的 git 安装。** 宿主上没有 clone 时，用 GitHub spec 安装并放行 pnpm 拦截的构建：
 
 ```sh
 dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
 ```
 
-Git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发环境依赖）。pnpm ≥10 会拦截构建脚本：首次 `add` 失败后，把 pnpm 打印的确切键复制进 profile 的 `pnpm-workspace.yaml`：
+git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发环境依赖）。pnpm ≥10 会拦截构建脚本：首次 `add` 失败后，把 pnpm 打印的确切键复制进 profile 的 `pnpm-workspace.yaml`——同一个 commit 可能打印出两种键（`codeload.github.com/.../tar.gz/...` 和 `git+https://github.com/...git#...`），**两种都放行**再重跑同一条 `add`。不要手动进 `node_modules` 补构建：失败的 `add` 不会登记层，手动构建同样不会登记。这条允许意味着「安装时执行本包代码」，请固定 commit，防止后续推送悄悄改变执行内容。
 
-   ```yaml
-   allowBuilds:
-     dsh-compass: true
-   ```
-
-   然后重跑同一条 `add`。不要手动进 `node_modules` 补构建：失败的 `add` 不会登记层，手动构建同样不会登记。这条允许意味着「安装时执行本包代码」，请固定 commit，防止后续推送悄悄改变执行内容。
-
-核对安装结果：
+两种安装都要核对：
 
    - `~/.dsh/profiles/web/package.json` 的 `dependencies` 和 `dsh.profile.bundles` 里都有 `dsh-compass`（bundles 缺条目说明 `add` 没有成功，补跑 `dsh plugin --profile web install` 登记）；
-   - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` 里有 `index.js` 和 `client.js`（由 `prepare` 构建）。
+   - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` 里有 `index.js` 和 `client.js`（本地 clone 由 `pnpm run build` 产出，git 安装由 `prepare` 产出）。
 
 **上游源码构建**到此即可：本包自己的 bundle patch 会禁用官方的 `session-log-download` 行（它的 `/export` 命令与本包的撞名；本包自带该命令与自己的下载按钮和对话框，ZIP 端点本身属于 ApiProxy，不受影响）。
 
@@ -107,26 +119,6 @@ Git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发�
    ```
 
 重启 `dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
-
-**保留 clone、按本地目录安装** — 不需要任何构建授权，且安装的是活链接：
-
-```sh
-git clone https://github.com/Happy2Git/dsh-compass.git
-cd dsh-compass
-pnpm install        # 装构建工具链（tsdown）——每个 clone 一次
-pnpm run build      # 产出 lib/（index.js + client.js）
-```
-
-然后在你的 dsh 检出目录里，按路径安装这个 clone：
-
-```sh
-dsh plugin --profile web add /path/to/dsh-compass
-```
-
-这条路径与上面的 git 安装有两点不同：
-
-- **没有 allowBuilds 步骤。** pnpm 把本地目录按 `link:` 依赖安装，不会运行它的 `prepare` 脚本，因此不存在构建授权门槛——`lib/` 由 clone 自己的 `pnpm run build` 产出。
-- **profile 记录的是文件系统链接，不是钉死的 commit。** 这份安装随 clone 生、随 clone 灭：clone 不能删也不能挪；在 clone 里重新 `pnpm run build` 后重启 `dsh web` 即生效，无需重新 add。需要不依赖 clone 的可复现部署时，选上面钉 commit 的 git 安装。
 
 ## 卸载
 

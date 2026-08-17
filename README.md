@@ -63,7 +63,7 @@ The package carries every capability surface it needs, so it installs on any dsh
 
 ## Install
 
-On an **upstream source build**, first build the official repo and use its CLI (verified with `master` at `47f9438`):
+**Host first.** The panel renders through the web slot system. On the official repo, build from source (verified with `master` at `47f9438`) and use its CLI:
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
@@ -73,25 +73,37 @@ pnpm install && pnpm run build
 pnpm dsh --profile web --port 3080     # the stock web profile boots the web GUI
 ```
 
-Then, with any host that passed the requirements check, install from this repository with a pinned commit:
+**Install from a local clone (the tested path).** Clone this repository, build it, then add the clone by path from your dsh checkout:
+
+```sh
+cd path://dsh-compass        # the dsh-compass checkout on this machine
+pnpm install                 # the build toolchain (tsdown) — once per clone
+pnpm run build               # emits lib/ (index.js + client.js)
+```
+
+Then, back in the dsh checkout:
+
+```sh
+dsh plugin --profile web add path://dsh-compass
+```
+
+That is the whole install. Two properties of the local path make it the path this project is developed against:
+
+- **No allowBuilds step.** pnpm installs a local directory as a `link:` dependency and never runs its `prepare` script, so there is no build gate to open — the clone's own `pnpm run build` is what produces `lib/`.
+- **The profile records a filesystem link.** The install lives and dies with the clone: keep the checkout in place, and a later `pnpm run build` inside it updates the running panel without re-adding (restart `dsh web` after a rebuild).
+
+**Reproducible deployments: pinned-commit git install.** When the host must install without a clone, add the GitHub spec and open the build gate pnpm blocks:
 
 ```sh
 dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
 ```
 
-Git installs build from source through the package's `prepare` script (transpile-only, no dev context). pnpm ≥10 blocks the build until allowed; on the first failed `add`, copy the exact key pnpm printed into the profile's `pnpm-workspace.yaml`:
+The git install builds through the package's `prepare` script, which pnpm ≥10 blocks until allowed. On the first failed `add`, pnpm prints the exact allowlist key — copy every key it prints (the same commit can appear as both a `codeload.github.com/.../tar.gz/...` key and a `git+https://github.com/...git#...` key) into the profile's `pnpm-workspace.yaml`, then re-run the same `add`. Do not build inside `node_modules` by hand: a failed `add` never registers the layer, and a hand build does not register it either. Pin a commit so a later push cannot silently change what runs.
 
-   ```yaml
-   allowBuilds:
-     dsh-compass: true
-   ```
-
-   Then re-run the same `add`. Do not build inside `node_modules` by hand: a failed `add` never registers the layer, and a hand build does not register it either. That allowance is permission to execute this package's code at install time — pin a commit so a later push cannot silently change what runs.
-
-Verify the install:
+Verify either install:
 
    - `~/.dsh/profiles/web/package.json` lists `dsh-compass` in both `dependencies` and `dsh.profile.bundles` (a missing bundles entry means the `add` did not succeed; re-run `dsh plugin --profile web install` to register it);
-   - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` contains `index.js` and `client.js` (built by `prepare`).
+   - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` contains `index.js` and `client.js` (built by `pnpm run build` in the clone, or by `prepare` for git installs).
 
 On an **upstream source build** nothing else is needed: the package's own bundle patch disables the stock `session-log-download` row (its `/export` command would collide with this package's, and this package ships the command plus its own download button and dialog; the ZIP endpoint itself belongs to ApiProxy and stays).
 
@@ -107,26 +119,6 @@ The **fork's** default `web` profile ships the same panel in-box. To use this pa
    ```
 
 Restart `dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
-
-**Keep a clone and install from the local directory** — no build authorization needed, and the installed code stays live:
-
-```sh
-git clone https://github.com/Happy2Git/dsh-compass.git
-cd dsh-compass
-pnpm install        # the build toolchain (tsdown) — once per clone
-pnpm run build      # emits lib/ (index.js + client.js)
-```
-
-Then, from your dsh checkout, add the clone by path:
-
-```sh
-dsh plugin --profile web add /path/to/dsh-compass
-```
-
-Two things make this path different from the git install above:
-
-- **No allowBuilds step.** pnpm installs a local directory as a `link:` dependency and never runs its `prepare` script, so there is no build gate to open — the clone's own `pnpm run build` is what produces `lib/`.
-- **The profile records a filesystem link, not a pinned commit.** The install lives and dies with the clone: keep it in place, and a later `pnpm run build` inside it updates the running panel without re-adding (restart `dsh web` after a rebuild). Choose the pinned-commit git install when the deployment must stay reproducible without the clone.
 
 ## Uninstall
 
