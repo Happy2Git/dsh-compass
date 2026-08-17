@@ -100,6 +100,8 @@ The package carries every capability surface it needs, so it installs on any dsh
 
 ![Files tab, directories first](screenshots/04-files-tab-dirs-first.png?v=3)
 
+**Hidden-entries toggle** — dot-prefixed (POSIX hidden) entries stay hidden by default; the "." toggle beside the filter shows or hides them instantly (.git, .artifacts and friends appear with their git badges), and the choice survives reloads.
+
 **Panel-file drag** — file rows drag their absolute path into the conversation. On fork builds the composer's native intake consumes the drag (image files attach their content directly on vision models). On every other host — including upstream source builds, whose composer does not know the drag MIME yet — the package's own window-level intake takes the drop and appends the path sentence to the draft, which the agent can still act on with its tools. The intake yields to a composer that claims the drag, so both hosts keep exactly one intake:
 
 ![Panel file drag](screenshots/05-drag-image.png?v=3)

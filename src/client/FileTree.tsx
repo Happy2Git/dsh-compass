@@ -46,6 +46,10 @@ export interface FileTreeProps {
   root: string | undefined
   /** Basename filter text from the store. */
   filter: string
+  /** Whether dot-prefixed (POSIX hidden) entries show in the tree. */
+  showHiddenFiles: boolean
+  /** Flip the hidden-entries preference. */
+  onToggleHiddenFiles: () => void
   /** Expanded directory paths from the store. */
   expandedDirs: string[]
   onToggleDir: (path: string) => void
@@ -159,7 +163,7 @@ export function FileTree(props: FileTreeProps): ReactNode {
         // Aborted on unmount or root change: never set state afterwards.
         if (controller.signal.aborted) return
         setDirs(prev => new Map(prev).set(path, {
-          entries: listing.entries.filter(entry => !entry.hidden),
+          entries: listing.entries,
           truncated: listing.truncated,
           loading: false,
           error: null,
@@ -271,7 +275,7 @@ export function FileTree(props: FileTreeProps): ReactNode {
       rows.push(<div key={`${childKey}|error`} className={clsx(css.rowNote, css.rowError)} style={{ paddingLeft: `${8 + (depth + 1) * INDENT_PX}px` }}>读取失败:{state.error}</div>)
       return rows
     }
-    const visible = state.entries.filter(entry => matches(entry.name))
+    const visible = state.entries.filter(entry => (!entry.hidden || props.showHiddenFiles) && matches(entry.name))
     if (visible.length === 0) {
       rows.push(<div key={`${childKey}|empty`} className={css.rowNote} style={{ paddingLeft: `${8 + (depth + 1) * INDENT_PX}px` }}>无匹配条目</div>)
       return rows
@@ -345,6 +349,16 @@ export function FileTree(props: FileTreeProps): ReactNode {
           placeholder="按名称过滤…"
           aria-label="按名称过滤目录"
         />
+        <button
+          type="button"
+          className={clsx(css.hiddenToggle, props.showHiddenFiles && css.hiddenToggleActive)}
+          aria-pressed={props.showHiddenFiles}
+          aria-label="显示隐藏文件"
+          title={props.showHiddenFiles ? '隐藏文件已显示' : '隐藏文件已隐藏'}
+          onClick={props.onToggleHiddenFiles}
+        >
+          .
+        </button>
       </div>
       <div className={css.treeBody}>
         {props.root === undefined

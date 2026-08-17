@@ -368,11 +368,15 @@
 
 .filterRow {
   flex: none;
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
 .filterInput {
   box-sizing: border-box;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: 32px;
   padding: 5px 12px;
   border: 1px solid var(--dsw-alias-border-l2);
@@ -928,4 +932,31 @@
    while the plugin is absent. */
 :root:has([data-shell-overlay]) div[data-phase] {
   padding-right: var(--dsh-context-panel-width, 0px);
+}
+
+/* ---- Files-tab hidden-entries toggle ---- */
+
+.hiddenToggle {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hiddenToggle:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.hiddenToggleActive {
+  background: var(--dsw-alias-button-floating-fill);
+  border-color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-state-business-primary);
 }

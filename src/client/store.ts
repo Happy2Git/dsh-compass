@@ -16,6 +16,8 @@ type PanelState = {
   tab: PanelTab
   /** Basename filter for the directory tree. */
   filter: string
+  /** Whether dot-prefixed (POSIX hidden) entries show in the directory tree. */
+  showHiddenFiles: boolean
   /** Absolute paths of expanded directory rows. */
   expandedDirs: string[]
   /** Absolute path of the file opened in the centered pop-out; null hides it. */
@@ -42,6 +44,7 @@ type PanelState = {
 type PanelActions = {
   setTab: (draft: PanelState, tab: PanelTab) => void
   setFilter: (draft: PanelState, filter: string) => void
+  toggleHiddenFiles: (draft: PanelState) => void
   setContextFilter: (draft: PanelState, filter: string) => void
   bumpContextPulse: (draft: PanelState, events: number) => void
   clearContextPulse: (draft: PanelState) => void
@@ -70,6 +73,7 @@ export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> 
     init: (): PanelState => ({
       tab: 'context',
       filter: '',
+      showHiddenFiles: false,
       contextFilter: '',
       contextPulse: 0,
       expandedDirs: [],
@@ -86,6 +90,7 @@ export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> 
         if (tab === 'context') d.contextPulse = 0
       },
       setFilter: (d, filter) => { d.filter = filter },
+      toggleHiddenFiles: (d) => { d.showHiddenFiles = !d.showHiddenFiles },
       setContextFilter: (d, filter) => { d.contextFilter = filter },
       bumpContextPulse: (d, events) => { d.contextPulse += events },
       clearContextPulse: (d) => { d.contextPulse = 0 },

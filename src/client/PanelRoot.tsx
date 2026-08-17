@@ -478,6 +478,8 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
                 <FileTree
                   root={cwd}
                   filter={state.filter}
+                  showHiddenFiles={state.showHiddenFiles}
+                  onToggleHiddenFiles={actions.toggleHiddenFiles}
                   expandedDirs={state.expandedDirs}
                   onToggleDir={actions.toggleDir}
                   onFilter={actions.setFilter}
