@@ -10,7 +10,15 @@ The package is one bundle, one loader row: the host half mounts the local git ba
 
 ## ⚠️ Requirements
 
-The panel renders through the web slot system (`window.__ModuleLoader__`, the frozen module table, and the `shell.overlay` seat in `ui-layout`). Hosts divide into three tiers, verified 2026-08:
+The panel renders through the web slot system (`window.__ModuleLoader__`, the frozen module table, and the `shell.overlay` seat in `ui-layout`). dsh-compass runs on the GitHub source version of DeepSeek Harness — the npm release predates the slot system. Build it from source:
+
+```sh
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+cd deepseek-harness
+pnpm install && pnpm run build
+```
+
+Hosts divide into three tiers, verified 2026-08:
 
 - **Upstream `master`, source build — works.** `https://github.com/deepseek-ai/deepseek-harness` at `47f9438` contains the slot system, the `dsh.client` manifest handling, and the `shell.overlay` render site; this package's externals all resolve and the panel mounts. Build the repo from source (below) — the npm release is older than these commits.
 - **The [fork](https://github.com/Happy2Git/deepseek-harness) — works, panel in-box.** Its default `web` profile ships the same panel; installing this package there is for running the standalone artifact.
@@ -30,22 +38,7 @@ On the fork the output must contain the `ui-context-files`, `git`, `directory-ro
 
 ![Files tab](screenshots/01-files-tab.png?v=3)
 
-**Git tab** — framed working-tree block and commit tree: branch position, uncommitted files, lanes, ref badges, lazy commit expansion, and a refresh control. Workspace rows and commit files open their diff in the centered pop-out, colored by line role:
-
-![Git tab](screenshots/02-git-tab.png?v=3)
-![Working-tree diff preview](screenshots/06-workspace-diff.png?v=3)
-
-**Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and pulls the complete history out-of-band on activation (up to 1,000 messages, the conversation window untouched), so both sections hold the complete log. Since v0.14 an **occupancy strip** heads the view (measured bytes per section, colored by origin class — instructions / skill / plugin / cross-session recall / runtime), every row carries its **origin badge and measured size**, the history section names **the latest compaction** (how many documents and bytes it moved out of the live window), and while the context tab is inactive new injections and boundary moves badge the tab with an **unread count** (cleared on open; a dot marks it when the panel is collapsed):
-
-![Context tab](screenshots/03-context-tab.png?v=4)
-
-**Directories first** — symlinked directories sort with the directories group:
-
-![Files tab, directories first](screenshots/04-files-tab-dirs-first.png?v=3)
-
-**Panel-file drag** — file rows drag their absolute path into the conversation. On fork builds the composer's native intake consumes the drag (image files attach their content directly on vision models). On every other host — including upstream source builds, whose composer does not know the drag MIME yet — the package's own window-level intake takes the drop and appends the path sentence to the draft, which the agent can still act on with its tools. The intake yields to a composer that claims the drag, so both hosts keep exactly one intake:
-
-![Panel file drag](screenshots/05-drag-image.png?v=3)
+More screenshots in the [Gallery](#gallery) after Install.
 
 ## Main-track compatibility
 
@@ -62,14 +55,6 @@ The package carries every capability surface it needs, so it installs on any dsh
 **Performance.** The context tab's document stream is signature-gated, so the panel re-projects and re-renders only when the injected documents actually change, not per stream batch. Complete history arrives through `/dir/injected-docs`, which filters the durable log server-side and sends text blocks only; on a session with 181k events this replaced roughly 120 MB of history-page JSON per activation with a single KB-scale response. Every listing and read is bounded (`maxEntries`, `maxTextBytes`, `maxImageBytes`, git `maxOutputBytes` and `maxCommits`), every fetch rides an `AbortSignal` that cancels with the caller, and the per-session fetch markers prune with the session list, so nothing accumulates per departed session. Directory badges list ignored entries through `ls-files --directory`, which collapses a node_modules to one line (measured 14 MB → ~18 KB on a fork-repo root); a truncated ignored listing degrades gracefully, the M/A/D/U badges stay complete.
 
 ## Install
-
-**Preliminary.** dsh-compass runs on the GitHub source version of DeepSeek Harness — that build's web composition carries the slot system this panel renders through, which the npm release predates:
-
-```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
-pnpm install && pnpm run build
-```
 
 **Clone and install.** Clone this repository, build it, then add the clone by path from your dsh checkout:
 
@@ -118,6 +103,25 @@ The **fork's** default `web` profile ships the same panel in-box. To use this pa
    ```
 
 Start (or restart, if it is already running) `pnpm dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
+
+## Gallery
+
+**Git tab** — framed working-tree block and commit tree: branch position, uncommitted files, lanes, ref badges, lazy commit expansion, and a refresh control. Workspace rows and commit files open their diff in the centered pop-out, colored by line role:
+
+![Git tab](screenshots/02-git-tab.png?v=3)
+![Working-tree diff preview](screenshots/06-workspace-diff.png?v=3)
+
+**Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and pulls the complete history out-of-band on activation (up to 1,000 messages, the conversation window untouched), so both sections hold the complete log. Since v0.14 an **occupancy strip** heads the view (measured bytes per section, colored by origin class — instructions / skill / plugin / cross-session recall / runtime), every row carries its **origin badge and measured size**, the history section names **the latest compaction** (how many documents and bytes it moved out of the live window), and while the context tab is inactive new injections and boundary moves badge the tab with an **unread count** (cleared on open; a dot marks it when the panel is collapsed):
+
+![Context tab](screenshots/03-context-tab.png?v=4)
+
+**Directories first** — symlinked directories sort with the directories group:
+
+![Files tab, directories first](screenshots/04-files-tab-dirs-first.png?v=3)
+
+**Panel-file drag** — file rows drag their absolute path into the conversation. On fork builds the composer's native intake consumes the drag (image files attach their content directly on vision models). On every other host — including upstream source builds, whose composer does not know the drag MIME yet — the package's own window-level intake takes the drop and appends the path sentence to the draft, which the agent can still act on with its tools. The intake yields to a composer that claims the drag, so both hosts keep exactly one intake:
+
+![Panel file drag](screenshots/05-drag-image.png?v=3)
 
 ## Uninstall
 

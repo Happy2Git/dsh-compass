@@ -10,7 +10,15 @@
 
 ## ⚠️ 要求
 
-面板通过 web 槽位系统渲染（`window.__ModuleLoader__`、冻结模块表、`ui-layout` 的 `shell.overlay` 挂载点）。宿主分三档，2026-08 实测：
+面板通过 web 槽位系统渲染（`window.__ModuleLoader__`、冻结模块表、`ui-layout` 的 `shell.overlay` 挂载点）。dsh-compass 适配的是 DeepSeek Harness 的 GitHub 源码版本——npm 发布版早于槽位系统。先从源码构建它：
+
+```sh
+git clone https://github.com/deepseek-ai/deepseek-harness.git
+cd deepseek-harness
+pnpm install && pnpm run build
+```
+
+宿主分三档，2026-08 实测：
 
 - **上游 `master` 源码构建——可用。** `https://github.com/deepseek-ai/deepseek-harness` 的 `47f9438` 已包含槽位系统、`dsh.client` 清单处理和 `shell.overlay` 渲染点；本包的外部模块全部可解析，面板正常挂载。按下面的步骤从源码构建官方仓库即可——npm 发布版还落后于这些提交。
 - **[fork](https://github.com/Happy2Git/deepseek-harness)——可用，面板内置。** fork 默认 `web` profile 自带同一面板，在 fork 上安装本包是为了运行独立产物。
@@ -30,22 +38,7 @@ fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、
 
 ![文件夹标签](screenshots/01-files-tab.png?v=3)
 
-**Git 标签** — 带边框的工作区区块加提交树：分支位置、未提交文件、泳道、引用徽章、惰性展开提交与刷新按钮。工作区行与提交内文件都在中部弹出 diff，按行角色着色：
-
-![Git 标签](screenshots/02-git-tab.png?v=3)
-![工作区 diff 预览](screenshots/06-workspace-diff.png?v=3)
-
-**上下文标签** — 注入上下文文档分为当前有效窗口与压缩历史流水，带搜索；视图随会话事件流实时重投影，会话激活时带外拉取完整历史（最多 1,000 条消息，不动共享对话窗口），两个区块持有完整日志。v0.14 起标签头新增**占用条**（按字节实测的窗口占用，分指令文件/技能/插件/跨会话召回/运行时五类来源着色）、每篇文档带**来源标注与实测大小**、历史流水头部注明**最近一次压缩**移出的篇数与体量；不在上下文标签时，新注入与压缩边界移动会让「上下文」标签页带**未读计数**徽标（打开即清零，折叠态显示圆点）：
-
-![上下文标签](screenshots/03-context-tab.png?v=4)
-
-**目录优先** — 指向目录的符号链接与目录同组排序：
-
-![文件夹标签，目录优先](screenshots/04-files-tab-dirs-first.png?v=3)
-
-**面板文件拖入** — 文件行把绝对路径拖进对话。fork 上由 composer 原生接收（支持视觉的模型对图片直接附加内容）；其他宿主——包括尚不认识该拖拽 MIME 的上游源码构建——由包内自带的整窗接收器接住拖放，把路径说明追加进草稿，模型仍可用工具处理该路径。接收器对已认领拖拽的 composer 主动让位，两种宿主都只有一条接收链路：
-
-![面板文件拖入](screenshots/05-drag-image.png?v=3)
+更多截图见安装之后的[效果展示](#效果展示)。
 
 ## main-track 兼容性
 
@@ -62,14 +55,6 @@ fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、
 **性能。** 上下文标签的文档流做了签名门控，面板只在注入文档真正变化时重投影、重渲染，不随每个流式批次动作。完整历史经 `/dir/injected-docs` 获取，该路由在服务端过滤持久化日志、只发文本块；在 18 万事件的会话上，它把每次激活约 120 MB 的历史页 JSON 换成单次 KB 级响应。所有列举与读取都有界（`maxEntries`、`maxTextBytes`、`maxImageBytes`、git 的 `maxOutputBytes` 与 `maxCommits`），每次抓取都挂 `AbortSignal` 随调用方取消，按会话的抓取标记随会话列表剪枝，离开的会话不留下累积。目录徽章的忽略项走 `ls-files --directory` 折叠列出，一个 node_modules 只占一行（fork 仓库根目录实测 14 MB 输出降到约 18 KB）；截断时仅忽略项优雅降级，M/A/D/U 徽章不受影响。
 
 ## 安装
-
-**前置。** dsh-compass 适配的是 DeepSeek Harness 的 GitHub 源码版本——该构建的 web 组合包含面板渲染所需的槽位系统，而 npm 发布版早于它：
-
-```sh
-git clone https://github.com/deepseek-ai/deepseek-harness.git
-cd deepseek-harness
-pnpm install && pnpm run build
-```
 
 **克隆后安装。** clone 本仓库、构建，然后回到 dsh 检出目录按路径安装：
 
@@ -118,6 +103,25 @@ git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发�
    ```
 
 启动（若已在运行则重启）`pnpm dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
+
+## 效果展示
+
+**Git 标签** — 带边框的工作区区块加提交树：分支位置、未提交文件、泳道、引用徽章、惰性展开提交与刷新按钮。工作区行与提交内文件都在中部弹出 diff，按行角色着色：
+
+![Git 标签](screenshots/02-git-tab.png?v=3)
+![工作区 diff 预览](screenshots/06-workspace-diff.png?v=3)
+
+**上下文标签** — 注入上下文文档分为当前有效窗口与压缩历史流水，带搜索；视图随会话事件流实时重投影，会话激活时带外拉取完整历史（最多 1,000 条消息，不动共享对话窗口），两个区块持有完整日志。v0.14 起标签头新增**占用条**（按字节实测的窗口占用，分指令文件/技能/插件/跨会话召回/运行时五类来源着色）、每篇文档带**来源标注与实测大小**、历史流水头部注明**最近一次压缩**移出的篇数与体量；不在上下文标签时，新注入与压缩边界移动会让「上下文」标签页带**未读计数**徽标（打开即清零，折叠态显示圆点）：
+
+![上下文标签](screenshots/03-context-tab.png?v=4)
+
+**目录优先** — 指向目录的符号链接与目录同组排序：
+
+![文件夹标签，目录优先](screenshots/04-files-tab-dirs-first.png?v=3)
+
+**面板文件拖入** — 文件行把绝对路径拖进对话。fork 上由 composer 原生接收（支持视觉的模型对图片直接附加内容）；其他宿主——包括尚不认识该拖拽 MIME 的上游源码构建——由包内自带的整窗接收器接住拖放，把路径说明追加进草稿，模型仍可用工具处理该路径。接收器对已认领拖拽的 composer 主动让位，两种宿主都只有一条接收链路：
+
+![面板文件拖入](screenshots/05-drag-image.png?v=3)
 
 ## 卸载
 
