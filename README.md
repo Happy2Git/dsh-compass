@@ -48,12 +48,6 @@ The package carries every capability surface it needs, so it installs on any dsh
 - the git seam and its local backend ship inside the package (`ctx.subprocess` + `ctx.webServer` come from the base composition);
 - the conversation reserve uses the package's own `--dsh-compass-width` variable and a CSS `:has()` rule against the shell's stable `[data-shell-overlay]` hook — no fork CSS required (the fork's in-box rule reads a different variable, so no composition double-pads).
 
-## Security and performance
-
-**Security.** Every host route this package registers is loopback-only and refuses to load on a non-loopback webserver host. Request bodies are capped at 64 KiB and must be `application/json`; every path must be fully qualified, so a wire value never resolves against the host working directory. Reads fail closed: oversized images refuse whole (`file-too-large`, plus the composed attachment per-file limit as 413), image formats come from magic bytes rather than filename extensions, git hashes are format-validated so no option can ride the hash slot, workspace-diff paths must stay inside the repository, and a git call outside a repository answers `not-a-repository`. The panel is read-only: git commands never write, dropped images are never copied into the workspace, and file content crosses the wire only through the bounded read routes.
-
-**Performance.** The context tab's document stream is signature-gated, so the panel re-projects and re-renders only when the injected documents actually change, not per stream batch. Complete history arrives through `/dir/injected-docs`, which filters the durable log server-side and sends text blocks only; on a session with 181k events this replaced roughly 120 MB of history-page JSON per activation with a single KB-scale response. Every listing and read is bounded (`maxEntries`, `maxTextBytes`, `maxImageBytes`, git `maxOutputBytes` and `maxCommits`), every fetch rides an `AbortSignal` that cancels with the caller, and the per-session fetch markers prune with the session list, so nothing accumulates per departed session. Directory badges list ignored entries through `ls-files --directory`, which collapses a node_modules to one line (measured 14 MB → ~18 KB on a fork-repo root); a truncated ignored listing degrades gracefully, the M/A/D/U badges stay complete.
-
 ## Install
 
 **Clone and install.** Clone this repository, build it, then add the clone by path from your dsh checkout:
@@ -68,7 +62,7 @@ pnpm run build               # emits lib/ (index.js + client.js)
 Then, back in the dsh checkout:
 
 ```sh
-pnpm dsh plugin --profile web add path://dsh-compass
+pnpm dsh plugin --profile web add /path/to/dsh-compass
 ```
 
 That is the whole install. Two properties make it the path this project is developed against:
@@ -103,6 +97,12 @@ The **fork's** default `web` profile ships the same panel in-box. To use this pa
    ```
 
 Start (or restart, if it is already running) `pnpm dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
+
+## Security and performance
+
+**Security.** Every host route this package registers is loopback-only and refuses to load on a non-loopback webserver host. Request bodies are capped at 64 KiB and must be `application/json`; every path must be fully qualified, so a wire value never resolves against the host working directory. Reads fail closed: oversized images refuse whole (`file-too-large`, plus the composed attachment per-file limit as 413), image formats come from magic bytes rather than filename extensions, git hashes are format-validated so no option can ride the hash slot, workspace-diff paths must stay inside the repository, and a git call outside a repository answers `not-a-repository`. The panel is read-only: git commands never write, dropped images are never copied into the workspace, and file content crosses the wire only through the bounded read routes.
+
+**Performance.** The context tab's document stream is signature-gated, so the panel re-projects and re-renders only when the injected documents actually change, not per stream batch. Complete history arrives through `/dir/injected-docs`, which filters the durable log server-side and sends text blocks only; on a session with 181k events this replaced roughly 120 MB of history-page JSON per activation with a single KB-scale response. Every listing and read is bounded (`maxEntries`, `maxTextBytes`, `maxImageBytes`, git `maxOutputBytes` and `maxCommits`), every fetch rides an `AbortSignal` that cancels with the caller, and the per-session fetch markers prune with the session list, so nothing accumulates per departed session. Directory badges list ignored entries through `ls-files --directory`, which collapses a node_modules to one line (measured 14 MB → ~18 KB on a fork-repo root); a truncated ignored listing degrades gracefully, the M/A/D/U badges stay complete.
 
 ## Gallery
 

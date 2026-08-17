@@ -48,12 +48,6 @@ fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、
 - git seam 与本地后端随包内置（`ctx.subprocess` + `ctx.webServer` 来自基础组合）；
 - 对话避让使用包自己的 `--dsh-compass-width` 变量 + 针对 shell 稳定钩子 `[data-shell-overlay]` 的 CSS `:has()` 规则——不需要 fork 的 CSS（fork 内置规则读的是另一个变量，任何组合都不会双重避让）。
 
-## 安全与性能
-
-**安全。** 本包注册的所有宿主路由仅限回环，在非回环 webserver 主机上直接拒绝加载。请求体上限 64 KiB 且必须是 `application/json`；路径必须完全限定，线上值绝不会相对宿主工作目录解析。读取失败即关闭：超限图片整读拒绝（`file-too-large`，叠加已组合附件的单文件上限 413），图片格式按魔数判定而非文件名扩展名，git 哈希做格式校验使选项无法混进哈希槽，工作区 diff 路径必须留在仓库内，仓库外的 git 调用回答 `not-a-repository`。面板只读：git 命令从不写入，拖入的图片从不复制进工作区，文件内容只经有界读取路由跨线。
-
-**性能。** 上下文标签的文档流做了签名门控，面板只在注入文档真正变化时重投影、重渲染，不随每个流式批次动作。完整历史经 `/dir/injected-docs` 获取，该路由在服务端过滤持久化日志、只发文本块；在 18 万事件的会话上，它把每次激活约 120 MB 的历史页 JSON 换成单次 KB 级响应。所有列举与读取都有界（`maxEntries`、`maxTextBytes`、`maxImageBytes`、git 的 `maxOutputBytes` 与 `maxCommits`），每次抓取都挂 `AbortSignal` 随调用方取消，按会话的抓取标记随会话列表剪枝，离开的会话不留下累积。目录徽章的忽略项走 `ls-files --directory` 折叠列出，一个 node_modules 只占一行（fork 仓库根目录实测 14 MB 输出降到约 18 KB）；截断时仅忽略项优雅降级，M/A/D/U 徽章不受影响。
-
 ## 安装
 
 **克隆后安装。** clone 本仓库、构建，然后回到 dsh 检出目录按路径安装：
@@ -68,7 +62,7 @@ pnpm run build               # 产出 lib/（index.js + client.js）
 然后回到 dsh 检出目录：
 
 ```sh
-pnpm dsh plugin --profile web add path://dsh-compass
+pnpm dsh plugin --profile web add /path/to/dsh-compass
 ```
 
 到此安装完成。两条性质使它成为本项目开发对标的安装方式：
@@ -103,6 +97,12 @@ git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发�
    ```
 
 启动（若已在运行则重启）`pnpm dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
+
+## 安全与性能
+
+**安全。** 本包注册的所有宿主路由仅限回环，在非回环 webserver 主机上直接拒绝加载。请求体上限 64 KiB 且必须是 `application/json`；路径必须完全限定，线上值绝不会相对宿主工作目录解析。读取失败即关闭：超限图片整读拒绝（`file-too-large`，叠加已组合附件的单文件上限 413），图片格式按魔数判定而非文件名扩展名，git 哈希做格式校验使选项无法混进哈希槽，工作区 diff 路径必须留在仓库内，仓库外的 git 调用回答 `not-a-repository`。面板只读：git 命令从不写入，拖入的图片从不复制进工作区，文件内容只经有界读取路由跨线。
+
+**性能。** 上下文标签的文档流做了签名门控，面板只在注入文档真正变化时重投影、重渲染，不随每个流式批次动作。完整历史经 `/dir/injected-docs` 获取，该路由在服务端过滤持久化日志、只发文本块；在 18 万事件的会话上，它把每次激活约 120 MB 的历史页 JSON 换成单次 KB 级响应。所有列举与读取都有界（`maxEntries`、`maxTextBytes`、`maxImageBytes`、git 的 `maxOutputBytes` 与 `maxCommits`），每次抓取都挂 `AbortSignal` 随调用方取消，按会话的抓取标记随会话列表剪枝，离开的会话不留下累积。目录徽章的忽略项走 `ls-files --directory` 折叠列出，一个 node_modules 只占一行（fork 仓库根目录实测 14 MB 输出降到约 18 KB）；截断时仅忽略项优雅降级，M/A/D/U 徽章不受影响。
 
 ## 效果展示
 
