@@ -133,11 +133,44 @@ export function installPanelDropIntake(): () => void {
   window.addEventListener('drop', onDrop)
   window.addEventListener('dragleave', onLeave)
   window.addEventListener('dragend', onDragEnd)
+
+  // E2E seam: with ?compass-test=1 a real button dispatches the same
+  // bubbling DragEvents the panel rows fire, so a browser test can exercise
+  // the full window-level path — MIME detection, defaultPrevented yield,
+  // overlay, draft write — without native DnD synthesis (CDP mouse input
+  // cannot start HTML5 drags). Production page loads never mount it: the
+  // query gate keeps the shipping surface untouched.
+  let testButton: HTMLButtonElement | undefined
+  const testMode = typeof window.location !== 'undefined'
+    && new URLSearchParams(window.location.search).has('compass-test')
+  if (testMode && typeof document.body !== 'undefined' && document.body !== null) {
+    const TEST_PATH = '/tmp/dsh-git-badges/tracked.txt'
+    testButton = document.createElement('button')
+    testButton.type = 'button'
+    testButton.setAttribute('data-plugin', 'dsh-compass')
+    testButton.setAttribute('aria-label', 'compass 拖入测试')
+    testButton.style.cssText = 'position:fixed;top:0;right:0;width:24px;height:24px;opacity:.08;'
+      + 'z-index:2147483647;border:none;background:transparent;'
+    testButton.addEventListener('click', () => {
+      const transfer = new DataTransfer()
+      transfer.setData(PANEL_PATH_MIME, TEST_PATH)
+      // Dispatched on document so the shell's document-level handlers run
+      // first (they ignore the custom MIME), then this module's window
+      // handlers see the unclaimed drag — the exact coexistence order.
+      const over = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer })
+      document.dispatchEvent(over)
+      const drop = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer })
+      document.dispatchEvent(drop)
+    })
+    document.body.append(testButton)
+  }
+
   return () => {
     window.removeEventListener('dragover', onDragOver)
     window.removeEventListener('drop', onDrop)
     window.removeEventListener('dragleave', onLeave)
     window.removeEventListener('dragend', onDragEnd)
+    testButton?.remove()
     hideOverlay()
   }
 }
