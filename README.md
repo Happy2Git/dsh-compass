@@ -37,7 +37,7 @@ On the fork the output must contain the `ui-context-files`, `git`, `directory-ro
 
 **Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and pulls the complete history out-of-band on activation (up to 1,000 messages, the conversation window untouched), so both sections hold the complete log. Since v0.14 an **occupancy strip** heads the view (measured bytes per section, colored by origin class — instructions / skill / plugin / cross-session recall / runtime), every row carries its **origin badge and measured size**, the history section names **the latest compaction** (how many documents and bytes it moved out of the live window), and while the context tab is inactive new injections and boundary moves badge the tab with an **unread count** (cleared on open; a dot marks it when the panel is collapsed):
 
-![Context tab](screenshots/03-context-tab.png?v=3)
+![Context tab](screenshots/03-context-tab.png?v=4)
 
 **Directories first** — symlinked directories sort with the directories group:
 
