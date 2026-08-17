@@ -78,7 +78,7 @@ git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发�
 
 - 目录列表与文本读取走包内自带的有界浏览器（`/dir/*` 直接读文件系统——不需要 `directoryPicker.readText`、不需要 browse 后端，profile 组合了原生选择器也能用）；
 - git seam 与本地后端随包内置（`ctx.subprocess` + `ctx.webServer` 来自基础组合）；
-- 对话避让使用包自己的 `--dsh-compass-width` 变量 + 针对 shell 稳定钩子 `[data-shell-overlay]` 的 CSS `:has()` 规则——不需要 fork 的 CSS（fork 内置规则读的是另一个变量，任何组合都不会双重避让）。
+- 对话避让由包自己完成：向文档根发布 `--dsh-context-panel-width`，并用针对壳稳定钩子的 CSS 规则（`:root:has([data-shell-overlay]) div[data-phase]`，对话列根的稳定属性）给对话列加同值内边距——上游壳没有 fork 那条消费规则也能正确让位；fork 内置规则读的是同一个变量，两者同值叠加，任何组合都不会双重避让。
 
 ## 安全与性能
 

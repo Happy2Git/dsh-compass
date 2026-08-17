@@ -918,3 +918,14 @@
   border-radius: 50%;
   background: var(--dsw-alias-state-warn-primary);
 }
+
+/* ---- Conversation reserve (upstream master) ----
+   The overlay layer is an absolute sibling of the conversation column, so
+   layout space for the docked panel must come from the column itself. The
+   conversation root carries the stable `data-phase` attribute; fork builds
+   pad the same element through their own shell rule with the same variable,
+   so both hosts converge on one inset. The default keeps everything neutral
+   while the plugin is absent. */
+:root:has([data-shell-overlay]) div[data-phase] {
+  padding-right: var(--dsh-context-panel-width, 0px);
+}

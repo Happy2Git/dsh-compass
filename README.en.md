@@ -77,7 +77,7 @@ The package carries every capability surface it needs, so it installs on any dsh
 
 - directory listing and text reads go through the package's own bounded browser (`/dir/*` reads the filesystem directly — no `directoryPicker.readText`, no browse backend requirement, works even when the profile composes a native chooser);
 - the git seam and its local backend ship inside the package (`ctx.subprocess` + `ctx.webServer` come from the base composition);
-- the conversation reserve uses the package's own `--dsh-compass-width` variable and a CSS `:has()` rule against the shell's stable `[data-shell-overlay]` hook — no fork CSS required (the fork's in-box rule reads a different variable, so no composition double-pads).
+- the conversation reserve is the package's own: it publishes `--dsh-context-panel-width` on the document root and insets the conversation column through a rule against the shell's stable hooks (`:root:has([data-shell-overlay]) div[data-phase]`, the conversation root's stable attribute) — upstream shells without the fork's consuming rule still yield the space. The fork's in-box rule reads the same variable, so both apply the same value and no composition double-pads.
 
 ## Security and performance
 
