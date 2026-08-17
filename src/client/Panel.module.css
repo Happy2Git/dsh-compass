@@ -136,6 +136,7 @@
 /* Collapsed rail toggle: the sidebar's 36px collapsed iconButton geometry. */
 .railToggle {
   flex: none;
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -777,4 +778,135 @@
 
 .gitBadge_ignored {
   color: var(--dsw-alias-label-tertiary);
+}
+
+/* ---- Context-tab provenance, occupancy, and pulse ---- */
+
+.docSize {
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.originInstructions {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.originSkill {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.originPlugin {
+  color: var(--dsw-alias-state-warn-primary);
+}
+
+.originRecall {
+  color: var(--dsw-alias-state-business-tertiary);
+}
+
+.originRuntime {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.statsStrip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 8px 8px;
+  padding: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+}
+
+.statsRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: "title meta meta" "bar bar bar";
+  row-gap: 4px;
+  align-items: baseline;
+  column-gap: 6px;
+}
+
+.statsRowDim {
+  opacity: 0.7;
+}
+
+.statsTitle {
+  grid-area: title;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.statsMeta {
+  grid-area: meta;
+  font-size: 11px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.statsBar {
+  grid-area: bar;
+  display: flex;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.statsBar > span {
+  height: 100%;
+}
+
+.segInstructions {
+  background: var(--dsw-alias-state-business-primary);
+}
+
+.segSkill {
+  background: var(--dsw-alias-state-success-primary);
+}
+
+.segPlugin {
+  background: var(--dsw-alias-state-warn-primary);
+}
+
+.segRecall {
+  background: var(--dsw-alias-state-business-tertiary);
+}
+
+.segRuntime {
+  background: var(--dsw-alias-label-quaternary, var(--dsw-alias-label-tertiary));
+}
+
+.sectionNote {
+  margin: 0;
+  padding: 4px 10px 6px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-caption);
+}
+
+.tabBadge {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--dsw-alias-state-warn-primary);
+  color: var(--dsw-alias-label-primary);
+  font-size: 10px;
+  line-height: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.railDot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-state-warn-primary);
 }

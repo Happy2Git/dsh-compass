@@ -8,6 +8,13 @@ import type { GitCommitDetail, GitFileDiff, GitGraphPage, GitStatusFile, GitWork
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { DocsStream } from './docs-stream.ts'
 
+/**
+ * Where one injected-context document came from, read off the durable
+ * `source.kind` — the same field the runtime's provenance projection reads.
+ * The panel never guesses: an unknown or absent kind degrades to `runtime`.
+ */
+export type DocOrigin = 'instructions' | 'skill' | 'plugin' | 'recall' | 'runtime'
+
 /** One injected-context document projected from a logged non-user message. */
 export interface ContextDoc {
   /** Sequence of the durable event this document came from. */
@@ -16,12 +23,16 @@ export interface ContextDoc {
   time: number
   /** Model-facing role of the context (inject / recall). */
   role: 'inject' | 'recall'
+  /** Producer classification from the durable source kind. */
+  origin: DocOrigin
   /** Producer label: instruction paths, session titles, plugin id, or the source kind. */
   label: string | null
   /** Producer-declared information form, or null when this UI presents it opaquely. */
   form: string | null
   /** The complete rendered markdown text. */
   text: string
+  /** UTF-8 byte length of `text` — the honest size measurement (no token estimate). */
+  bytes: number
   /** True while the document is still in the model's live window (not shadowed by a compaction checkpoint). */
   active: boolean
 }

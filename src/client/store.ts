@@ -30,6 +30,12 @@ type PanelState = {
   width: number
   /** Search query over injected-context documents (label + text + form). */
   contextFilter: string
+  /**
+   * Unseen context events while the context tab is not active: newly injected
+   * documents plus compaction boundary moves. Transient — a reload never
+   * replays it; opening the context tab clears it.
+   */
+  contextPulse: number
 }
 
 /** Annotation twin of the actions literal below. */
@@ -37,6 +43,8 @@ type PanelActions = {
   setTab: (draft: PanelState, tab: PanelTab) => void
   setFilter: (draft: PanelState, filter: string) => void
   setContextFilter: (draft: PanelState, filter: string) => void
+  bumpContextPulse: (draft: PanelState, events: number) => void
+  clearContextPulse: (draft: PanelState) => void
   toggleDir: (draft: PanelState, path: string) => void
   openCenter: (draft: PanelState, path: string) => void
   openDocCenter: (draft: PanelState, seq: number) => void
@@ -63,6 +71,7 @@ export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> 
       tab: 'context',
       filter: '',
       contextFilter: '',
+      contextPulse: 0,
       expandedDirs: [],
       centerFile: null,
       centerDocSeq: null,
@@ -71,9 +80,15 @@ export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> 
       width: 280,
     }),
     actions: {
-      setTab: (d, tab) => { d.tab = tab },
+      // Opening the context tab is the act of seeing the pulse events.
+      setTab: (d, tab) => {
+        d.tab = tab
+        if (tab === 'context') d.contextPulse = 0
+      },
       setFilter: (d, filter) => { d.filter = filter },
       setContextFilter: (d, filter) => { d.contextFilter = filter },
+      bumpContextPulse: (d, events) => { d.contextPulse += events },
+      clearContextPulse: (d) => { d.contextPulse = 0 },
       toggleDir: (d, path) => {
         const index = d.expandedDirs.indexOf(path)
         if (index >= 0) d.expandedDirs.splice(index, 1)
@@ -97,6 +112,11 @@ export function createPanelStore(): EngineStoreHandle<PanelState, PanelActions> 
       const snapshot = instance.getSnapshot()
       if (snapshot.centerFile !== null || snapshot.centerDocSeq !== null) {
         instance.actions.closeCenter()
+      }
+      // The pulse is a live-session signal; a rehydrated count from the
+      // previous page life would badge a tab with events already seen.
+      if (snapshot.contextPulse !== 0) {
+        instance.actions.clearContextPulse()
       }
       return instance
     },

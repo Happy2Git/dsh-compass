@@ -267,17 +267,41 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
   // observable folds its own signature per batch), so this re-fold + merge
   // runs on real changes — new injections, boundary moves, session switches,
   // the manual refresh — never on ordinary stream batches.
+  // The same fold feeds the context pulse: per session, the highest seen doc
+  // seq and the latest seen compaction boundary. While the context tab is not
+  // active, docs beyond the seen seq (still live) and boundary moves each
+  // count as one unseen event; opening the tab clears the counter in the
+  // store. A session switch re-baselines without pulsing — switching is
+  // itself the act of looking elsewhere.
+  const pulseSeen = useRef<{ id: SessionId | undefined; maxSeq: number; boundary: number }>({ id: undefined, maxSeq: -1, boundary: -1 })
   useEffect(() => {
     if (current === undefined) {
       setDocs([])
+      pulseSeen.current = { id: undefined, maxSeq: -1, boundary: -1 }
       return
     }
     // The live-window fold merges with the out-of-band older pages; `active`
     // re-derives against the latest checkpoint either source saw.
     const live = readInjectedDocs(current)
     const boundary = Math.max(olderBoundary, compactionBoundary(current) ?? -1)
-    setDocs(mergeDocs(olderDocs, live, boundary))
-  }, [current, docsRev, docsStream, readInjectedDocs, compactionBoundary, olderDocs, olderBoundary])
+    const next = mergeDocs(olderDocs, live, boundary)
+    setDocs(next)
+    const seen = pulseSeen.current
+    const nextMaxSeq = next.reduce((max, doc) => doc.seq > max ? doc.seq : max, -1)
+    if (seen.id !== current) {
+      pulseSeen.current = { id: current, maxSeq: nextMaxSeq, boundary }
+      return
+    }
+    const fresh = next.filter(doc => doc.seq > seen.maxSeq && doc.active).length
+    const boundaryMove = boundary > seen.boundary ? 1 : 0
+    const events = fresh + boundaryMove
+    if (events > 0 && state.tab !== 'context') actions.bumpContextPulse(events)
+    pulseSeen.current = {
+      id: current,
+      maxSeq: Math.max(seen.maxSeq, nextMaxSeq),
+      boundary: Math.max(seen.boundary, boundary),
+    }
+  }, [current, docsRev, docsStream, readInjectedDocs, compactionBoundary, olderDocs, olderBoundary, state.tab, actions])
 
   const handleLoadOlder = (): void => {
     if (current === undefined || loadingOlder) return
@@ -381,6 +405,7 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
               onClick={actions.toggleCollapsed}
             >
               <IconPanelLeftOutline16 className={css.railToggleGlyph} />
+              {state.contextPulse > 0 && <span className={css.railDot} title="有未读的上下文事件" />}
             </button>
           )
         ) : (
@@ -409,6 +434,11 @@ export function PanelRoot(props: PanelRootProps): ReactNode {
                   onClick={() => { actions.setTab('context') }}
                 >
                   上下文
+                  {state.contextPulse > 0 && (
+                    <span className={css.tabBadge} title={`${state.contextPulse} 条未读的上下文事件`}>
+                      {state.contextPulse > 99 ? '99+' : state.contextPulse}
+                    </span>
+                  )}
                 </button>
                 <button
                   type="button"

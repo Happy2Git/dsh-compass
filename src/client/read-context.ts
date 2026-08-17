@@ -10,7 +10,7 @@ import {
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
-import type { ContextDoc } from './types.ts'
+import type { ContextDoc, DocOrigin } from './types.ts'
 
 /** Concatenate the text blocks of a message body. */
 function contentText(content: readonly ContentBlock[]): string {
@@ -19,6 +19,28 @@ function contentText(content: readonly ContentBlock[]): string {
     if (block.type === 'text') text += block.text
   }
   return text
+}
+
+/** UTF-8 byte length of the projected text — the honest size measurement. */
+const byteLength = (text: string): number => new TextEncoder().encode(text).length
+
+/**
+ * Classify one durable message source by its kind: the same discriminator the
+ * runtime's provenance projection reads, so both folds agree. Unknown and
+ * absent kinds degrade to `runtime`, never a guess.
+ * @param source - the logged `user/message` source, exactly as recorded.
+ * @returns the origin classification for presentation.
+ */
+export function classifyDocOrigin(source: unknown): DocOrigin {
+  if (typeof source !== 'object' || source === null) return 'runtime'
+  const kind = (source as { kind?: unknown }).kind
+  switch (kind) {
+    case 'agent-instructions': return 'instructions'
+    case 'skill-invocation': return 'skill'
+    case 'plugin': return 'plugin'
+    case 'session-reference': return 'recall'
+    default: return 'runtime'
+  }
 }
 
 /** The logged-event slice the raw-history fold reads (wire events arrive with this envelope). */
@@ -73,9 +95,11 @@ export function foldDocEvents(events: readonly FoldedDocEvent[]): { docs: Contex
       seq: event.seq,
       time: event.time,
       role: provenance.role,
+      origin: classifyDocOrigin(source),
       label: provenance.label,
       form: contextForm(source),
       text,
+      bytes: byteLength(text),
       active: event.seq > boundary,
     })
   }
@@ -153,9 +177,11 @@ export function readInjectedDocs(ctx: ClientContext, sessionId: SessionId): Cont
       seq: node.seq,
       time: node.time,
       role: node.provenance.role,
+      origin: classifyDocOrigin(node.source),
       label: node.provenance.label,
       form: node.form,
       text,
+      bytes: byteLength(text),
       active: true,
     })
   }

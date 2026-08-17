@@ -4,7 +4,7 @@ English | [中文](README.zh.md)
 
 > **⚠️ Warning: the published npm release of dsh cannot show this panel — a source build can.** The last npm release of DeepSeek Harness predates the web slot system the panel renders through. Upstream `master` (≥ `47f9438`, verified) ships the slot system, module loader, and `shell.overlay` seat, and hosts this package directly — build the official repo from source and install there. The [fork](https://github.com/Happy2Git/deepseek-harness) keeps the same panel in-box. See [Requirements](#%EF%B8%8F-requirements).
 
-A single-package [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin adding a right-side context-and-files panel to the Web GUI: directory browsing with git status badges, live injected-context documents with a compaction history stream, a framed read-only git commit graph with working-tree status, panel-file drag into the conversation (image intake for vision models), and a session-log download action.
+A single-package [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin adding a right-side context-and-files panel to the Web GUI: directory browsing with git status badges, live injected-context documents with a compaction history stream (origin badges, measured occupancy strip, unread signals), a framed read-only git commit graph with working-tree status, panel-file drag into the conversation (image intake for vision models), and a session-log download action.
 
 The package is one bundle, one loader row: the host half mounts the local git backend (`/git/*`), the plugin-owned directory routes (`/dir/*`), and the `/export` command as child plugins; the browser half registers the panel into `shell.overlay` and the download action into the panel's header utilities.
 
@@ -35,7 +35,7 @@ On the fork the output must contain the `ui-context-files`, `git`, `directory-ro
 ![Git tab](screenshots/02-git-tab.png?v=3)
 ![Working-tree diff preview](screenshots/06-workspace-diff.png?v=3)
 
-**Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and pulls the complete history out-of-band on activation (up to 1,000 messages, the conversation window untouched), so both sections hold the complete log:
+**Context tab** — injected-context documents split into the live window and the compaction history stream, with search over both; the view re-projects live and pulls the complete history out-of-band on activation (up to 1,000 messages, the conversation window untouched), so both sections hold the complete log. Since v0.14 an **occupancy strip** heads the view (measured bytes per section, colored by origin class — instructions / skill / plugin / cross-session recall / runtime), every row carries its **origin badge and measured size**, the history section names **the latest compaction** (how many documents and bytes it moved out of the live window), and while the context tab is inactive new injections and boundary moves badge the tab with an **unread count** (cleared on open; a dot marks it when the panel is collapsed):
 
 ![Context tab](screenshots/03-context-tab.png?v=3)
 
