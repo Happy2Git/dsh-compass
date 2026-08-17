@@ -63,14 +63,13 @@ The package carries every capability surface it needs, so it installs on any dsh
 
 ## Install
 
-**Host first.** The panel renders through the web slot system. On the official repo, build from source (verified with `master` at `47f9438`) and use its CLI:
+**Host first.** The panel renders through the web slot system. On the official repo, build from source (verified with `master` at `47f9438`) and use its CLI — no need to boot the web UI yet, the single start at the end of this section serves as the check:
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 cd deepseek-harness
 git checkout 47f9438
 pnpm install && pnpm run build
-pnpm dsh --profile web --port 3080     # the stock web profile boots the web GUI
 ```
 
 **Install from a local clone (the tested path).** Clone this repository, build it, then add the clone by path from your dsh checkout:
@@ -118,7 +117,7 @@ The **fork's** default `web` profile ships the same panel in-box. To use this pa
      disabled: true
    ```
 
-Restart `dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
+Start (or restart, if it is already running) `dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
 
 ## Uninstall
 

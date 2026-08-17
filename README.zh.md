@@ -63,14 +63,13 @@ fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、
 
 ## 安装
 
-**先备好宿主。** 面板通过 web 槽位系统渲染。官方仓库要先源码构建、用它的 CLI（以 `master` 的 `47f9438` 验证）：
+**先备好宿主。** 面板通过 web 槽位系统渲染。官方仓库要先源码构建、用它的 CLI（以 `master` 的 `47f9438` 验证）——此时不需要启动 web UI，装完插件后的那一次启动就是验证：
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 cd deepseek-harness
 git checkout 47f9438
 pnpm install && pnpm run build
-pnpm dsh --profile web --port 3080     # 官方 web profile 启动 Web 界面
 ```
 
 **本地 clone 安装（已验证的推荐流程）。** clone 本仓库、构建，然后回到 dsh 检出目录按路径安装：
@@ -118,7 +117,7 @@ git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发�
      disabled: true
    ```
 
-重启 `dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
+启动（若已在运行则重启）`dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
 
 ## 卸载
 
