@@ -19,7 +19,7 @@
 先确认宿主的挂载面：
 
 ```sh
-dsh --profile web --dump-config
+pnpm dsh --profile web --dump-config
 ```
 
 fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、`session-log-download` 四行。上游源码构建上，面板不依赖任何上游行——改查服务页面的启动清单里有 `modules` 行（`packages/client/modules`，即 `__ModuleLoader__` 的提供方）。
@@ -63,12 +63,11 @@ fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、
 
 ## 安装
 
-**先备好宿主。** 面板通过 web 槽位系统渲染。官方仓库要先源码构建、用它的 CLI（以 `master` 的 `47f9438` 验证）——此时不需要启动 web UI，装完插件后的那一次启动就是验证：
+**先备好宿主。** dsh-compass 适配的是 DeepSeek Harness 的 GitHub 源码版本——该构建的 web 组合包含面板渲染所需的槽位系统，而 npm 发布版早于它。构建好这个检出、用它的 CLI（下面所有命令都从该检出以 `pnpm dsh` 运行）：
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 cd deepseek-harness
-git checkout 47f9438
 pnpm install && pnpm run build
 ```
 
@@ -83,25 +82,25 @@ pnpm run build               # 产出 lib/（index.js + client.js）
 然后回到 dsh 检出目录：
 
 ```sh
-dsh plugin --profile web add path://dsh-compass
+pnpm dsh plugin --profile web add path://dsh-compass
 ```
 
-到此安装完成。本地路径两条性质使它成为本项目开发对标的安装方式：
+到此安装完成。两条性质使它成为本项目开发对标的安装方式：
 
 - **没有 allowBuilds 步骤。** pnpm 把本地目录按 `link:` 依赖安装，不会运行它的 `prepare` 脚本，因此不存在构建授权门槛——`lib/` 由 clone 自己的 `pnpm run build` 产出。
-- **profile 记录的是文件系统链接。** 这份安装随 clone 生、随 clone 灭：检出目录不能删也不能挪；在 clone 里重新 `pnpm run build` 后重启 `dsh web` 即生效，无需重新 add。
+- **profile 记录的是文件系统链接。** 这份安装随 clone 生、随 clone 灭：检出目录不能删也不能挪；在 clone 里重新 `pnpm run build` 后重启 `pnpm dsh web` 即生效，无需重新 add。
 
 **可复现部署：钉 commit 的 git 安装。** 宿主上没有 clone 时，用 GitHub spec 安装并放行 pnpm 拦截的构建：
 
 ```sh
-dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
+pnpm dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
 ```
 
 git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发环境依赖）。pnpm ≥10 会拦截构建脚本：首次 `add` 失败后，把 pnpm 打印的确切键复制进 profile 的 `pnpm-workspace.yaml`——同一个 commit 可能打印出两种键（`codeload.github.com/.../tar.gz/...` 和 `git+https://github.com/...git#...`），**两种都放行**再重跑同一条 `add`。不要手动进 `node_modules` 补构建：失败的 `add` 不会登记层，手动构建同样不会登记。这条允许意味着「安装时执行本包代码」，请固定 commit，防止后续推送悄悄改变执行内容。
 
 两种安装都要核对：
 
-   - `~/.dsh/profiles/web/package.json` 的 `dependencies` 和 `dsh.profile.bundles` 里都有 `dsh-compass`（bundles 缺条目说明 `add` 没有成功，补跑 `dsh plugin --profile web install` 登记）；
+   - `~/.dsh/profiles/web/package.json` 的 `dependencies` 和 `dsh.profile.bundles` 里都有 `dsh-compass`（bundles 缺条目说明 `add` 没有成功，补跑 `pnpm dsh plugin --profile web install` 登记）；
    - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` 里有 `index.js` 和 `client.js`（本地 clone 由 `pnpm run build` 产出，git 安装由 `prepare` 产出）。
 
 **上游源码构建**到此即可：本包自己的 bundle patch 会禁用官方的 `session-log-download` 行（它的 `/export` 命令与本包的撞名；本包自带该命令与自己的下载按钮和对话框，ZIP 端点本身属于 ApiProxy，不受影响）。
@@ -117,12 +116,12 @@ git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发�
      disabled: true
    ```
 
-启动（若已在运行则重启）`dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
+启动（若已在运行则重启）`pnpm dsh web`，刷新页面后核对：`curl -X POST http://127.0.0.1:<端口>/dir/list -H 'content-type: application/json' -d '{"path":"<任意目录>"}'` 返回 JSON（host 半已挂载），浏览器控制台没有 `__ModuleLoader__` 报错，右侧出现面板。
 
 ## 卸载
 
 ```sh
-dsh plugin --profile web remove dsh-compass
+pnpm dsh plugin --profile web remove dsh-compass
 ```
 
 它执行 `pnpm remove` 并把本包从层列表摘除；profile 无法启动时这条命令仍然可用。fork 上删掉上面加的三行 `disabled: true` 恢复内置面板；上游构建上被本包 patch 禁用的 `session-log-download` 行随卸载自动恢复。

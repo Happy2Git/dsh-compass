@@ -19,7 +19,7 @@ The panel renders through the web slot system (`window.__ModuleLoader__`, the fr
 Confirm the mounting surface on your host:
 
 ```sh
-dsh --profile web --dump-config
+pnpm dsh --profile web --dump-config
 ```
 
 On the fork the output must contain the `ui-context-files`, `git`, `directory-routes`, and `session-log-download` rows. On an upstream source build the panel needs no upstream rows of its own — check instead that the served page's boot manifest carries the `modules` row (`packages/client/modules`, the `__ModuleLoader__` provider).
@@ -63,12 +63,11 @@ The package carries every capability surface it needs, so it installs on any dsh
 
 ## Install
 
-**Host first.** The panel renders through the web slot system. On the official repo, build from source (verified with `master` at `47f9438`) and use its CLI — no need to boot the web UI yet, the single start at the end of this section serves as the check:
+**Host first.** dsh-compass runs on the GitHub source version of DeepSeek Harness — that build's web composition carries the slot system this panel renders through, which the npm release predates. Build that checkout and use its CLI (all commands below run as `pnpm dsh` from it):
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
 cd deepseek-harness
-git checkout 47f9438
 pnpm install && pnpm run build
 ```
 
@@ -83,25 +82,25 @@ pnpm run build               # emits lib/ (index.js + client.js)
 Then, back in the dsh checkout:
 
 ```sh
-dsh plugin --profile web add path://dsh-compass
+pnpm dsh plugin --profile web add path://dsh-compass
 ```
 
 That is the whole install. Two properties make it the path this project is developed against:
 
 - **No allowBuilds step.** pnpm installs a local directory as a `link:` dependency and never runs its `prepare` script, so there is no build gate to open — the clone's own `pnpm run build` is what produces `lib/`.
-- **The profile records a filesystem link.** The install lives and dies with the clone: keep the checkout in place, and a later `pnpm run build` inside it updates the running panel without re-adding (restart `dsh web` after a rebuild).
+- **The profile records a filesystem link.** The install lives and dies with the clone: keep the checkout in place, and a later `pnpm run build` inside it updates the running panel without re-adding (restart `pnpm dsh web` after a rebuild).
 
 **Reproducible deployments: pinned-commit git install.** When the host must install without a clone, add the GitHub spec and open the build gate pnpm blocks:
 
 ```sh
-dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
+pnpm dsh plugin --profile web add github:Happy2Git/dsh-compass#<commit-sha>
 ```
 
 The git install builds through the package's `prepare` script, which pnpm ≥10 blocks until allowed. On the first failed `add`, pnpm prints the exact allowlist key — copy every key it prints (the same commit can appear as both a `codeload.github.com/.../tar.gz/...` key and a `git+https://github.com/...git#...` key) into the profile's `pnpm-workspace.yaml`, then re-run the same `add`. Do not build inside `node_modules` by hand: a failed `add` never registers the layer, and a hand build does not register it either. Pin a commit so a later push cannot silently change what runs.
 
 Verify either install:
 
-   - `~/.dsh/profiles/web/package.json` lists `dsh-compass` in both `dependencies` and `dsh.profile.bundles` (a missing bundles entry means the `add` did not succeed; re-run `dsh plugin --profile web install` to register it);
+   - `~/.dsh/profiles/web/package.json` lists `dsh-compass` in both `dependencies` and `dsh.profile.bundles` (a missing bundles entry means the `add` did not succeed; re-run `pnpm dsh plugin --profile web install` to register it);
    - `~/.dsh/profiles/web/node_modules/dsh-compass/lib/` contains `index.js` and `client.js` (built by `pnpm run build` in the clone, or by `prepare` for git installs).
 
 On an **upstream source build** nothing else is needed: the package's own bundle patch disables the stock `session-log-download` row (its `/export` command would collide with this package's, and this package ships the command plus its own download button and dialog; the ZIP endpoint itself belongs to ApiProxy and stays).
@@ -117,12 +116,12 @@ The **fork's** default `web` profile ships the same panel in-box. To use this pa
      disabled: true
    ```
 
-Start (or restart, if it is already running) `dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
+Start (or restart, if it is already running) `pnpm dsh web`, refresh the page, and check: `curl -X POST http://127.0.0.1:<port>/dir/list -H 'content-type: application/json' -d '{"path":"<any dir>"}'` answers JSON (host half mounted), the browser console has no `__ModuleLoader__` error, and the panel is on the right.
 
 ## Uninstall
 
 ```sh
-dsh plugin --profile web remove dsh-compass
+pnpm dsh plugin --profile web remove dsh-compass
 ```
 
 This runs `pnpm remove` and drops the package from the layer list; it works even when the profile fails to boot. On the fork, delete the three `disabled: true` rows added above to restore the in-box panel; on an upstream build the package-patched `session-log-download` row restores itself.
