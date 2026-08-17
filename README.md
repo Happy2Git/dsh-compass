@@ -63,7 +63,7 @@ The package carries every capability surface it needs, so it installs on any dsh
 
 ## Install
 
-**Host first.** dsh-compass runs on the GitHub source version of DeepSeek Harness — that build's web composition carries the slot system this panel renders through, which the npm release predates. Build that checkout and run everything from it: the checkout's own CLI is `pnpm dsh` (all commands below use it):
+**Preliminary.** dsh-compass runs on the GitHub source version of DeepSeek Harness — that build's web composition carries the slot system this panel renders through, which the npm release predates:
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
@@ -74,6 +74,7 @@ pnpm install && pnpm run build
 **Clone and install.** Clone this repository, build it, then add the clone by path from your dsh checkout:
 
 ```sh
+git clone https://github.com/Happy2Git/dsh-compass.git
 cd path://dsh-compass        # the dsh-compass checkout on this machine
 pnpm install                 # the build toolchain (tsdown) — once per clone
 pnpm run build               # emits lib/ (index.js + client.js)

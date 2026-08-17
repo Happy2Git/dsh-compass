@@ -63,7 +63,7 @@ fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、
 
 ## 安装
 
-**先备好宿主。** dsh-compass 适配的是 DeepSeek Harness 的 GitHub 源码版本——该构建的 web 组合包含面板渲染所需的槽位系统，而 npm 发布版早于它。构建这个检出并从这里运行命令：检出自带的 CLI 就是 `pnpm dsh`（下面所有命令都用它）：
+**前置。** dsh-compass 适配的是 DeepSeek Harness 的 GitHub 源码版本——该构建的 web 组合包含面板渲染所需的槽位系统，而 npm 发布版早于它：
 
 ```sh
 git clone https://github.com/deepseek-ai/deepseek-harness.git
@@ -74,6 +74,7 @@ pnpm install && pnpm run build
 **克隆后安装。** clone 本仓库、构建，然后回到 dsh 检出目录按路径安装：
 
 ```sh
+git clone https://github.com/Happy2Git/dsh-compass.git
 cd path://dsh-compass        # 本机上的 dsh-compass 检出目录
 pnpm install                 # 装构建工具链（tsdown）——每个 clone 一次
 pnpm run build               # 产出 lib/（index.js + client.js）
