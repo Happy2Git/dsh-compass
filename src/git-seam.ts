@@ -37,6 +37,44 @@ export interface GitGraphPage {
 /** Change kind of one file within a commit or in the working tree. */
 export type GitCommitFileStatus = 'added' | 'modified' | 'deleted' | 'untracked' | 'ignored'
 
+/**
+ * Priority order for aggregating a directory's descendant statuses: the
+ * strongest signal wins. "Modified" ranks first (an edit somewhere inside
+ * outranks a stray untracked file), and "ignored" ranks last so an ignored
+ * cache cannot crowd out real changes.
+ */
+const AGGREGATE_PRIORITY: readonly GitCommitFileStatus[] = ['modified', 'added', 'deleted', 'untracked', 'ignored']
+
+/**
+ * Aggregate many descendant statuses into one presentation status, or null
+ * for an empty input. Pure wire-layer logic shared by the host fold and its
+ * tests.
+ * @param statuses - descendant statuses of one directory child.
+ * @returns the strongest status, or null when there is nothing to show.
+ */
+export function aggregateStatus(statuses: readonly GitCommitFileStatus[]): GitCommitFileStatus | null {
+  for (const rank of AGGREGATE_PRIORITY) {
+    if (statuses.includes(rank)) return rank
+  }
+  return null
+}
+
+/**
+ * Map one `git status --porcelain=v1` XY pair onto the closed status
+ * vocabulary. Staged/unstaged combinations collapse the way the workspace
+ * fold always has: A anywhere means added, D anywhere means deleted, the
+ * rest are modified.
+ * @param xy - the two status characters of one porcelain line.
+ * @returns the presentation status.
+ */
+export function porcelainStatus(xy: string): GitCommitFileStatus {
+  if (xy === '!!') return 'ignored'
+  if (xy === '??') return 'untracked'
+  if (xy.includes('A')) return 'added'
+  if (xy.includes('D')) return 'deleted'
+  return 'modified'
+}
+
 /** One file a commit touched, with its line-count facts. */
 export interface GitCommitFile {
   /** Repo-relative path. */
@@ -105,8 +143,105 @@ export interface GitWorkspaceStatus {
 export interface GitStatusFile {
   /** Base name within the listed directory. */
   name: string
-  /** Working-tree status (`ignored` comes from git's own ignore rules). */
-  status: GitCommitFileStatus
+  /**
+   * The entry's own status: files, and a directory ignored in its entirety
+   * (`!! dir/` porcelain line). Null for every other directory child.
+   */
+  status: GitCommitFileStatus | null
+  /**
+   * Priority-aggregated status of everything beneath a directory child (M/U
+   * badges on folder rows); null for files and for directories with no
+   * working-tree changes anywhere inside.
+   */
+  aggregate: GitCommitFileStatus | null
+}
+
+/**
+ * Fold one `git status --porcelain=v1 --ignored --untracked-files=all` output
+ * into per-direct-child status entries for a directory listing. Direct-child
+ * files keep their own status; every deeper path contributes its status to
+ * its top-level directory's aggregate (renames count at the new path, the
+ * same as the workspace fold). The listing prefix (git's own
+ * `--show-prefix`) is stripped before matching, so paths outside the listed
+ * directory never leak in.
+ * @param output - the raw porcelain text.
+ * @param prefix - the repo-relative prefix of the listed directory.
+ * @returns the folded status entries, name-sorted.
+ */
+export function foldPorcelainStatuses(output: string, prefix = ''): GitStatusFile[] {
+  const byName = new Map<string, GitStatusFile>()
+  const ensure = (name: string): GitStatusFile => {
+    const existing = byName.get(name)
+    if (existing !== undefined) return existing
+    const entry: GitStatusFile = { name, status: null, aggregate: null }
+    byName.set(name, entry)
+    return entry
+  }
+  for (const line of output.split('\n')) {
+    if (line.length < 3) continue
+    const xy = line.slice(0, 2)
+    let rest = line.slice(3)
+    // Renames/copies print `old -> new`; the badge shows the new path.
+    const arrow = rest.indexOf(' -> ')
+    if (arrow !== -1) rest = rest.slice(arrow + 4)
+    if (!rest.startsWith(prefix)) continue
+    rest = rest.slice(prefix.length)
+    if (rest === '') continue
+    const status = porcelainStatus(xy)
+    if (rest.endsWith('/')) {
+      // A directory porcelain line (an ignored tree) is the directory's own
+      // status, not an aggregate.
+      const entry = ensure(rest.slice(0, -1))
+      entry.status = status
+      continue
+    }
+    const slash = rest.indexOf('/')
+    if (slash === -1) {
+      ensure(rest).status = status
+      continue
+    }
+    // A deeper path: fold into its top-level directory's aggregate.
+    const dirName = rest.slice(0, slash)
+    const entry = ensure(dirName)
+    const seen = entry.aggregate === null ? [] : [entry.aggregate]
+    entry.aggregate = aggregateStatus([...seen, status])
+  }
+  return [...byName.values()].sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
+}
+
+/**
+ * Fold one `git ls-files --others --ignored --exclude-standard --directory -z`
+ * output into ignored-status entries for a directory listing. The `--directory`
+ * flag collapses fully-ignored trees into single `name/` lines, so a
+ * node_modules never lists its files; deeper ignored paths inside partially
+ * ignored directories are not direct children and are dropped here.
+ * @param output - the NUL-separated ls-files text.
+ * @returns the ignored direct-child entries, name-sorted.
+ */
+export function foldIgnoredListing(output: string): GitStatusFile[] {
+  const byName = new Map<string, GitStatusFile>()
+  for (const raw of output.split('\0')) {
+    const name = raw.replace(/\/+$/, '')
+    if (name === '' || name.includes('/')) continue
+    byName.set(name, { name, status: 'ignored', aggregate: null })
+  }
+  return [...byName.values()].sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
+}
+
+/**
+ * Merge two folded status lists; entries already present in `primary` win
+ * (a path is either tracked-changed/untracked or ignored, never both).
+ * @param primary - the tracked-change/untracked fold.
+ * @param ignored - the ignored fold.
+ * @returns the merged list, name-sorted.
+ */
+export function mergeStatusEntries(primary: readonly GitStatusFile[], ignored: readonly GitStatusFile[]): GitStatusFile[] {
+  const byName = new Map<string, GitStatusFile>()
+  for (const entry of primary) byName.set(entry.name, entry)
+  for (const entry of ignored) {
+    if (!byName.has(entry.name)) byName.set(entry.name, entry)
+  }
+  return [...byName.values()].sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
 }
 
 /** One file's diff within one commit. */

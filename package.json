@@ -1,6 +1,6 @@
 {
   "name": "dsh-compass",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "DSH web plugin: right-side context-and-files panel (directory browser, injected-context documents, read-only git commit graph) plus the session-log download action",
   "type": "module",
   "main": "lib/index.js",

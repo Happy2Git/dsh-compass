@@ -23,7 +23,7 @@ import type {} from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import z from '@deepseek-ai/schemastery'
 import {
-  Git, GitError,
+  Git, GitError, foldIgnoredListing, foldPorcelainStatuses, mergeStatusEntries, porcelainStatus,
 } from './git-seam.ts'
 import type {
   GitCommitDetail, GitCommitFile, GitCommitFileStatus, GitFileDiff, GitGraphEntry, GitGraphPage, GitGraphOptions,
@@ -218,14 +218,6 @@ function statusKind(letter: string): GitCommitFileStatus {
 }
 
 /** Map a porcelain-v1 XY pair onto the closed workspace-file status. */
-function workspaceStatusKind(xy: string): GitWorkspaceFile['status'] {
-  if (xy === '!!') return 'ignored'
-  if (xy === '??') return 'untracked'
-  if (xy.includes('A')) return 'added'
-  if (xy.includes('D')) return 'deleted'
-  return 'modified'
-}
-
 /** Classify a non-zero git exit into the closed failure vocabulary. */
 function classifyFailure(stderr: string): GitError {
   const message = stderr.trim() || 'git exited with a non-zero status'
@@ -558,7 +550,7 @@ export default class LocalGit extends Git {
       const arrow = rest.indexOf(' -> ')
       if (arrow !== -1) rest = rest.slice(arrow + 4)
       if (rest === '') continue
-      statusByPath.set(rest, workspaceStatusKind(xy))
+      statusByPath.set(rest, porcelainStatus(xy))
     }
 
     const countsByPath = parseNumstat(numstatOutput)
@@ -594,30 +586,29 @@ export default class LocalGit extends Git {
     }
     let output: string
     try {
-      output = await this.runGitStrict(dir, ['status', '--porcelain=v1', '--ignored', '--untracked-files=all', '--', '.'], signal)
+      output = await this.runGitStrict(dir, ['status', '--porcelain=v1', '--untracked-files=all', '--', '.'], signal)
     } catch (error) {
       if (error instanceof GitError && error.code === 'not-a-repository') return []
       throw error
     }
-    const files: GitStatusFile[] = []
-    for (const line of output.split('\n')) {
-      if (line.length < 3) continue
-      const xy = line.slice(0, 2)
-      let rest = line.slice(3)
-      // Renames/copies print `old -> new`; the badge shows the new path.
-      const arrow = rest.indexOf(' -> ')
-      if (arrow !== -1) rest = rest.slice(arrow + 4)
-      if (!rest.startsWith(prefix)) continue
-      rest = rest.slice(prefix.length)
-      // Only direct children of the browsed directory carry a badge; deeper
-      // paths belong to a deeper listing.
-      if (rest.includes('/')) continue
-      if (rest === '') continue
-      files.push({ name: rest, status: workspaceStatusKind(xy) })
+    // The shared fold keeps direct-child files as leaf entries and aggregates
+    // every deeper path into its top-level directory, so a folder row shows
+    // the strongest status anywhere beneath it — no extra git invocations.
+    const entries = foldPorcelainStatuses(output, prefix)
+    // Ignored entries come from ls-files --directory, which collapses
+    // fully-ignored trees into one line (status --ignored lists every file —
+    // a node_modules alone explodes past the output bound). A truncated
+    // ignored listing degrades gracefully: the M/A/D/U badges are complete,
+    // only the cosmetic '!' set may lose its tail.
+    try {
+      const ignoredOutput = await this.runGit(dir, [
+        'ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z', '--', '.',
+      ], signal)
+      return mergeStatusEntries(entries, foldIgnoredListing(ignoredOutput.text))
+    } catch (error) {
+      if (error instanceof GitError && error.code === 'not-a-repository') return []
+      throw error
     }
-    // Code-unit name order: deterministic across locales.
-    files.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))
-    return files
   }
 
   async showFileDiff(cwd: string, hash: string, path: string, signal?: AbortSignal): Promise<GitFileDiff> {

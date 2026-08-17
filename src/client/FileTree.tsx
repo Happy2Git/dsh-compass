@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DirectoryListing } from '../directory-types.ts'
-import type { GitCommitFileStatus } from '../git-seam.ts'
+import type { GitCommitFileStatus, GitStatusFile } from '../git-seam.ts'
 import {
   IconCheckOutline16, IconChevronDownOutline14, IconChevronRightOutline14, IconCopyOutline16,
   IconFolderClose16, IconFolderOpen16, IconRefreshOutline14,
@@ -73,12 +73,28 @@ function statusBadge(status: GitCommitFileStatus): { letter: string; title: stri
   }
 }
 
-/** The git status badge for one row, or null when the directory has no status for it. */
-function GitStatusBadge({ status }: { status: GitCommitFileStatus | undefined }): ReactNode {
-  if (status === undefined) return null
+/**
+ * The git status badge for one row. Files show their own status; a directory
+ * shows the priority-aggregated status of everything beneath it (a folder
+ * with a modified file anywhere inside reads M), styled distinctly so
+ * "contains changes" never reads as "this path changed".
+ * @param entry - the row's folded status entry, or undefined when the
+ *   directory has no status for it.
+ * @param directory - whether the row is a directory.
+ */
+function GitStatusBadge({ entry, directory = false }: { entry: GitStatusFile | undefined; directory?: boolean }): ReactNode {
+  if (entry === undefined) return null
+  const aggregated = directory && entry.aggregate !== null
+  const status = aggregated ? entry.aggregate : entry.status
+  if (status === null) return null
   const { letter, title } = statusBadge(status)
+  const label = aggregated ? `目录内含${title}` : `git: ${title}`
   return (
-    <span className={`${css.gitBadge} ${css[`gitBadge_${status}`]}`} title={`git: ${title}`} aria-label={`git: ${title}`}>
+    <span
+      className={clsx(css.gitBadge, css[`gitBadge_${status}`], aggregated && css.gitBadge_dir)}
+      title={label}
+      aria-label={label}
+    >
       {letter}
     </span>
   )
@@ -125,7 +141,7 @@ function CopyPathButton({ path }: { path: string }): ReactNode {
  */
 export function FileTree(props: FileTreeProps): ReactNode {
   const [dirs, setDirs] = useState<ReadonlyMap<string, DirState>>(new Map())
-  const [statuses, setStatuses] = useState<ReadonlyMap<string, ReadonlyMap<string, GitCommitFileStatus>>>(new Map())
+  const [statuses, setStatuses] = useState<ReadonlyMap<string, ReadonlyMap<string, GitStatusFile>>>(new Map())
   const [rootLabel, setRootLabel] = useState<string | null>(null)
   /** In-flight listing controllers, aborted on root change and unmount. */
   const loadersRef = useRef<AbortController[]>([])
@@ -158,8 +174,8 @@ export function FileTree(props: FileTreeProps): ReactNode {
           (files) => {
             loadersRef.current = loadersRef.current.filter(candidate => candidate !== statusCtl)
             if (statusCtl.signal.aborted) return
-            const byName = new Map<string, GitCommitFileStatus>()
-            for (const file of files) byName.set(file.name, file.status)
+            const byName = new Map<string, GitStatusFile>()
+            for (const file of files) byName.set(file.name, file)
             setStatuses(prev => new Map(prev).set(path, byName))
           },
           () => {
@@ -232,7 +248,7 @@ export function FileTree(props: FileTreeProps): ReactNode {
             ? <IconFolderOpen16 className={css.rowGlyphIcon} />
             : <IconFolderClose16 className={css.rowGlyphIcon} />}
         </span>
-        <GitStatusBadge status={badgeStatus} />
+        <GitStatusBadge entry={badgeStatus} directory />
         <span className={css.rowName} title={path}>{name}</span>
         <CopyPathButton path={path} />
         <button
@@ -288,7 +304,7 @@ export function FileTree(props: FileTreeProps): ReactNode {
             <span className={css.rowGlyph} aria-hidden="true">
               <FileGlyph name={entry.name} />
             </span>
-            <GitStatusBadge status={statuses.get(path)?.get(entry.name)} />
+            <GitStatusBadge entry={statuses.get(path)?.get(entry.name)} />
             <span className={clsx(css.rowName, css.fileName)} title={entry.path}>{entry.name}</span>
             <CopyPathButton path={entry.path} />
           </div>,

@@ -760,6 +760,14 @@
   font-weight: 600;
 }
 
+/* A directory row's aggregate: outline instead of fill, so "contains
+   changes" reads differently from "this path changed". */
+.gitBadge_dir {
+  background: transparent;
+  border: 1px solid currentColor;
+  line-height: 12px;
+}
+
 .gitBadge_added {
   color: var(--dsw-alias-state-success-primary);
 }
