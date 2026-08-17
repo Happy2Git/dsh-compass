@@ -34,9 +34,9 @@ fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、
 
 ## 截图
 
-**文件夹标签** — 惰性目录树，目录优先排序，按名过滤，带 git 工作区状态徽章，每行可打开/复制。文件行显示自身状态字母（A/M/D/U/!）；目录行聚合其下最强的状态并描边显示（目录内含修改/新增/删除/未跟踪，整目录忽略显示 !），大仓库根目录也能在输出上限内完成折叠：
+**Git 标签** — 带边框的工作区区块加提交树：分支位置、未提交文件、泳道、引用徽章、惰性展开提交与刷新按钮。工作区行与提交内文件都在中部弹出 diff，按行角色着色：
 
-![文件夹标签](screenshots/01-files-tab.png?v=3)
+![Git 标签](screenshots/02-git-tab.png?v=3)
 
 更多截图见安装之后的[效果展示](#效果展示)。
 
@@ -60,7 +60,7 @@ fork 上输出里必须包含 `ui-context-files`、`git`、`directory-routes`、
 
 ```sh
 git clone https://github.com/Happy2Git/dsh-compass.git
-cd path://dsh-compass        # 本机上的 dsh-compass 检出目录
+cd dsh-compass
 pnpm install                 # 装构建工具链（tsdown）——每个 clone 一次
 pnpm run build               # 产出 lib/（index.js + client.js）
 ```

@@ -34,9 +34,9 @@ On the fork the output must contain the `ui-context-files`, `git`, `directory-ro
 
 ## Screenshots
 
-**Files tab** — lazy directory tree with directories-first order, basename filter, git working-tree status badges, and per-row open/copy actions. File rows show their own status letter (A/M/D/U/!); directory rows aggregate the strongest status anywhere beneath them, outlined to read as "contains changes" (M/A/D/U) or collapsed to one ! for a fully ignored tree:
+**Git tab** — framed working-tree block and commit tree: branch position, uncommitted files, lanes, ref badges, lazy commit expansion, and a refresh control. Workspace rows and commit files open their diff in the centered pop-out, colored by line role:
 
-![Files tab](screenshots/01-files-tab.png?v=3)
+![Git tab](screenshots/02-git-tab.png?v=3)
 
 More screenshots in the [Gallery](#gallery) after Install.
 
@@ -60,7 +60,7 @@ The package carries every capability surface it needs, so it installs on any dsh
 
 ```sh
 git clone https://github.com/Happy2Git/dsh-compass.git
-cd path://dsh-compass        # the dsh-compass checkout on this machine
+cd dsh-compass
 pnpm install                 # the build toolchain (tsdown) — once per clone
 pnpm run build               # emits lib/ (index.js + client.js)
 ```
