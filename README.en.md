@@ -96,6 +96,18 @@ The package carries every capability surface it needs, so it installs on any dsh
 
 ![Context tab](screenshots/03-context-tab.png?v=4)
 
+**What the origin badges mean** — each document row's badge names its source channel, read off the durable `source.kind` the host recorded at injection time; the UI presents it as-is, never guesses. The name next to the badge (the label) is the concrete producer:
+
+| Badge | Source kind | Meaning | What the label shows |
+|---|---|---|---|
+| 指令文件 (instructions) | `agent-instructions` | Workspace/package instruction files (AGENTS.md and friends) assembled into the context | File path (e.g. `AGENTS.md`) |
+| 技能注入 (skill) | `skill-invocation` | Skill content injected by an explicit user invocation (e.g. `/review`) | The skill name |
+| 插件注入 (plugin) | `plugin` | Context a plugin proactively injected | The plugin id (e.g. `@deepseek-ai/dsh-system-prompt`, `compact`, `tool-goal`) |
+| 跨会话召回 (recall) | `session-reference` | Material lifted from another session's log | The referenced session title |
+| 运行时注入 (runtime) | anything else / absent | Fallback: honest degradation when none of the above match | The raw source-kind string |
+
+The classification reads the same `source.kind` the runtime's own projection uses; unknown kinds degrade to 运行时注入 (runtime) with their raw kind shown, so a future producer needs no release to stay identifiable.
+
 **Directories first** — symlinked directories sort with the directories group:
 
 ![Files tab, directories first](screenshots/04-files-tab-dirs-first.png?v=3)

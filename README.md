@@ -97,6 +97,18 @@ git 安装通过包的 `prepare` 脚本从源码构建（纯转译，无开发�
 
 ![上下文标签](screenshots/03-context-tab.png?v=4)
 
+**来源标签的含义** — 每篇文档行上的徽章是它的来源渠道，取自宿主在持久日志里记录的来源类型（`source.kind`），UI 只如实呈现、不猜测；徽章旁的名字（label）是具体生产者：
+
+| 标签 | 来源类型 | 含义 | 名字（label）里显示什么 |
+|---|---|---|---|
+| 指令文件 | `agent-instructions` | 工作区/包的指令文件（AGENTS.md 这类）组装进上下文 | 文件路径（如 `AGENTS.md`） |
+| 技能注入 | `skill-invocation` | 用户显式调用技能（如 `/review`）时注入的 skill 内容 | 技能名 |
+| 插件注入 | `plugin` | 某个插件主动注入的上下文 | 插件 id（如 `@deepseek-ai/dsh-system-prompt`、`compact`、`tool-goal`） |
+| 跨会话召回 | `session-reference` | 从另一个会话的日志取出的材料 | 被引用会话的标题 |
+| 运行时注入 | 其他/缺失 | 兜底分类：以上四类都不匹配时的诚实降级 | 原始来源类型字符串 |
+
+分类与宿主运行时的投影同源，未知来源类型一律降级为「运行时注入」并显示其原始类型，未来新生产者无需发版即可被识别。
+
 **目录优先** — 指向目录的符号链接与目录同组排序：
 
 ![文件夹标签，目录优先](screenshots/04-files-tab-dirs-first.png?v=3)
